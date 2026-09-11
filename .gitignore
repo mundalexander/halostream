@@ -1,0 +1,24 @@
+# Modelle & Gewichte – niemals ins Repo
+*.gguf
+*.safetensors
+*.bin
+*.pth
+models/
+colibri_store/
+
+# Build-Artefakte
+*.o
+*.so
+*.a
+c/colibri
+c/glm53
+spike/build/
+
+# Python
+.venv/
+__pycache__/
+*.egg-info/
+
+# Sonstiges
+*.log
+.DS_Store

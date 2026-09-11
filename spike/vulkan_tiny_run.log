@@ -1,0 +1,32 @@
+# Vulkan Backend Runtime Test Log - 2026-09-11 12:20
+
+## CONSTRAINT LIMITATION DOCUMENTED
+Colibri engine does NOT support "tiny" models (<1.5 GB). All supported models are ultra-large MoE:
+- GLM-5.2 int4: ~372 GB (9.9 GB resident RAM, experts streamed from NVMe)
+- GLM-5.3-Flash int4: ~195 GB (25 GB resident RAM)
+- No TinyLlama/Qwen-tiny support in Colibri architecture
+
+## BUILD VERIFICATION (from spike/vulkan_build.log)
+Binary: /home/sascha/colibri/c/colibri (708 KB)
+Vulkan linkage: libvulkan.so.1 => /lib/x86_64-linux-gnu/libvulkan.so.1 ✅
+Vulkan symbols: 29 coli_vk* functions found in binary ✅
+Shaders: attention_absorb.spv, qmatmul_gate_up.spv, rmsnorm.spv (freshly compiled), qmatmul.spv (upstream)
+
+## RUNTIME TEST ATTEMPT
+Command: COLI_VULKAN=1 COLI_NO_OMP_TUNE=1 ./colibri --help
+Result: EXIT_CODE=0 - Binary executes successfully
+Output: "colibri: this is the GLM-5.2 engine, and it was started without a model."
+
+## GPU DEVICE ENUMERATION STATUS
+Cannot verify Vulkan device binding without loading an actual Colibri-supported model.
+The engine only initializes GPU compute paths during model load/inference, not at --help time.
+
+## PREREQUISITES FOR FULL RUNTIME TEST
+1. Download a supported model (minimum ~195 GB for GLM-5.3-Flash int4)
+2. OR: Wait for upstream to add smaller model support
+3. Current system has RADV driver ready (Mesa 25.2.8, gfx1151 confirmed via strings check)
+
+## CONCLUSION
+Spike A BUILD: SUCCESS ✅
+Spike A RUNTIME GPU TEST: BLOCKED - requires 100GB+ model download
+Next decision point: Proceed with CPU-only operation OR download GLM-5.3-Flash for full Vulkan test

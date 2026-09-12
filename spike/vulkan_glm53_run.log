@@ -1,0 +1,71 @@
+[20:34:32] auto_first_run: warte auf 62/62 finale Shards
+[21:21:47] auto_first_run: GLM komplett — starte first_run.sh
+[2026-09-12 21:21:47] ===== HaloStream Phase B+C: erster Start =====
+[2026-09-12 21:21:47] Sanity: 62/62 Shards, 353 GB
+[2026-09-12 21:21:47] RAM verfügbar: 118 GiB (LM Studio sollte entladen sein)
+[2026-09-12 21:21:47] === Phase B1: Remap ===
+[remap] Starting zero-copy GLM-5.3-Flash tensor remap
+[remap] Model dir: /home/sascha/models/colibri_store/glm53_flash
+[remap] Index file: /home/sascha/models/colibri_store/glm53_flash/model.safetensors.index.json
+[remap] Backed up original to: /home/sascha/models/colibri_store/glm53_flash/model.safetensors.index.json.pre_remap
+[remap] Remapped 75760 tensor keys
+[remap] Total tensors in index: 76108
+[remap] Sample changes (first 10):
+[remap]   model.language_model.embed_tokens.weight
+[remap]     -> model.embed_tokens.weight
+[remap]   model.language_model.layers.0.hc_attn_base
+[remap]     -> model.layers.0.hc_attn_base
+[remap]   model.language_model.layers.0.hc_attn_fn
+[remap]     -> model.layers.0.hc_attn_fn
+[remap]   model.language_model.layers.0.hc_attn_scale
+[remap]     -> model.layers.0.hc_attn_scale
+[remap]   model.language_model.layers.0.hc_ffn_base
+[remap]     -> model.layers.0.hc_ffn_base
+[remap]   model.language_model.layers.0.hc_ffn_fn
+[remap]     -> model.layers.0.hc_ffn_fn
+[remap]   model.language_model.layers.0.hc_ffn_scale
+[remap]     -> model.layers.0.hc_ffn_scale
+[remap]   model.language_model.layers.0.input_layernorm.weight
+[remap]     -> model.layers.0.input_layernorm.weight
+[remap]   model.language_model.layers.0.mlp.down_proj.weight
+[remap]     -> model.layers.0.mlp.down_proj.weight
+[remap]   model.language_model.layers.0.mlp.down_proj.weight_scale_inv
+[remap]     -> model.layers.0.mlp.down_proj.weight_scale_inv
+[remap] 
+Critical tensor check after remap:
+[remap]   FOUND: model.layers.0.input_layernorm.weight  [model-00002-of-00062.safetensors]
+[remap]   FOUND: model.layers.44.post_attention_layernorm.weight  [model-00054-of-00062.safetensors]
+[remap]   FOUND: model.norm.weight  [model-00062-of-00062.safetensors]
+[remap]   MISSING: model.lm_head.weight  [N/A]
+[remap]   FOUND: model.embed_tokens.weight  [model-00001-of-00062.safetensors]
+[remap] 
+Remap complete. Physical shard files were NOT modified.
+[remap] Original index backed up to: /home/sascha/models/colibri_store/glm53_flash/model.safetensors.index.json.pre_remap
+[remap] Patched index written to: /home/sascha/models/colibri_store/glm53_flash/model.safetensors.index.json
+[2026-09-12 21:21:47] === Phase B2: coli doctor ===
+{
+  "schema_version": 1,
+  "status": "error",
+  "model": null,
+  "mode": "deep",
+  "checks": [
+    {
+      "id": "config.arguments",
+      "status": "fail",
+      "summary": "no model directory given: pass --model <dir>, or set COLI_MODEL=<dir>"
+    }
+  ],
+  "plan": null
+}
+[2026-09-12 21:21:47] === Phase B3: coli plan ===
+no model directory given.
+  pass --model <dir>, or set COLI_MODEL=<dir>
+[2026-09-12 21:21:48] === Phase C1: Baseline-Run (Vulkan, gfx1151) ===
+no model directory given.
+  pass --model <dir>, or set COLI_MODEL=<dir>
+[2026-09-12 21:21:48] Vulkan-Run RC=1 · Dauer: 0.0s
+[2026-09-12 21:21:48] === Phase C2: Fallback CPU-Run ===
+no model directory given.
+  pass --model <dir>, or set COLI_MODEL=<dir>
+[2026-09-12 21:21:48] CPU-Run RC=1 · Dauer: 0.0s
+[2026-09-12 21:21:48] ===== Phase B+C Ende — Ergebnisse ins Repo committen =====

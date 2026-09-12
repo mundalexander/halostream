@@ -1,0 +1,89 @@
+=== GLM-5.3-Flash Remap & Quant Audit ===
+Time: 2026-09-12 10:21
+
+## 1. Repositories Found
+
+### Pre-remapped Variants: NONE ✅ (no duplication waste)
+
+Search results:
+  - GLM-5.3-GGUF: 0xSero/GLM-5-381B-GGUF-IQ2_M (381B, not 320B Flash)
+  - Glm5Next tiny fixtures: aday777/glm5_next_tiny_fixture (test fixture, tiny weights)
+  - No quantized/remapped GLM-5.3-Flash (e4m3/int4) found on HF
+
+No existing community remap exists. Must create our own.
+
+---
+
+## 2. Zero-Copy Remap Strategy
+
+### Tensor Naming Incompatibility
+  GLM-5.3-Flash:  model.language_model.layers.N.*  (75,760 tensors)
+  Colibri expects: model.layers.N.*  (no language_model prefix)
+
+### Approach: Header-Only Index Patch (NO weight duplication)
+  1. Download model shards as-is (195 GB on NVMe)
+  2. Patch model.safetensors.index.json — strip "model.language_model." prefix
+  3. Physical shard files: NEVER TOUCHED (read-only by Colibri C-loader)
+  4. Colibri loads tensor names from index, physical bytes from shards
+
+### Script Created
+  /home/sascha/halostream/spike/remap_glm53.py
+  - Reads existing index (JSON)
+  - Remaps keys: model.language_model.* → model.*
+  - Writes patched index back (in-place)
+  - Original backed up as model.safetensors.index.json.pre_remap
+
+### Vision Encoder (model.visual.*)
+  Kept as-is — Colibri Vulkan backend ignores vision tensors for text inference.
+  Only text decoder layers are used.
+
+### Remapped Key Categories
+  model.language_model.*  →  model.*           (75,760 tensors)  ← REMAPPED
+  model.visual.*          →  model.visual.*    (347 tensors)    ← KEPT AS-IS
+  lm_head.weight          →  lm_head.weight   (1 tensor)       ← KEPT AS-IS
+
+---
+
+## 3. Architecture Compatibility Matrix
+
+Glm5Next vs Colibri Engines:
+
+  Feature              | GLM-5.3-Flash (Glm5Next) | Colibri glm_moe_dsa | Colibri deepseek_v4
+  ---------------------|--------------------------|---------------------|------------------
+  MoE with shared exp. | YES (288 routed + 1 shared) | YES (64 experts)   | YES
+  Expert routing       | sigmoid top-8            | ?                   | ?
+  Attention            | MLA + deepseek_sparse     | standard            | MLA-like?
+  Layer 45 (MTP)       | YES (enorm/hnorm)         | MTP row present     | ?
+  Tensor naming        | model.language_model.*    | model.*             | model.*
+  Quantization         | e4m3 (experts only)       | int4/int8 supported | int4/int8 supp.
+
+⚠️  Colibri binary has deepseek_v4 engine slot but NO symbols in current binary.
+⚠️  glm_moe_dsa is present and linked — but may not handle MLA/288-expert routing.
+
+---
+
+## 4. Next Action
+
+STEP 1: Download GLM-5.3-Flash (195 GB)
+    HF_HUB_DISABLE_XET=1 huggingface-cli download \
+      zai-org/GLM-5.3-Flash \
+      --local-dir /home/sascha/models/colibri_store/glm53_flash \
+      --local-dir-use-symlinks False
+
+STEP 2: Run remap script (zero-copy, <1 second)
+    python3 /home/sascha/halostream/spike/remap_glm53.py
+
+STEP 3: Attempt Colibri inference
+    COLI_VULKAN=1 ~/.venvs/colibri/bin/coli run \
+      --model /home/sascha/models/colibri_store/glm53_flash \
+      "Schreibe eine kurze Zusammenfassung über KI."
+
+STEP 4: If fails with tensor not found → Spike D (tensor name debugging)
+
+---
+
+## 5. Download Time Estimate
+
+  Size:  ~195 GB
+  Speed: ~5-20 MB/s (HF mirror variability)
+  Time:  ~2.5h - 10h depending on mirror

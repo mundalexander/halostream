@@ -1,0 +1,134 @@
+=== HALOGEN-FLASH-SERVER INSPECTION (HaloStream Referenz-Analyse) ===
+Zeit: 2026-09-12 13:01–13:10
+Repo: peonist-ai/halogen-flash-server @ main (36988cb, shallow clone)
+Klon: /home/sascha/halostream/spike/halogen_ref (44 Dateien, 1,1 MB)
+Modus: READ ONLY / REF ONLY — keine Systembeeinträchtigung
+
+=== VORWICHTIGSTER BEFUND: TASK-PREMISSE vs. REPO-REALITÄT ===
+
+Der Task nahm an, halogen-flash-server handhabt GLM-5.3-Flash (Glm5Next),
+model.language_model.layers-Remapping und 288-Experten-Routing.
+Das Repo tut KEINES davon:
+
+1. Es bedient Qwen3.8-Flash-Next (179.55B: 125B + 51B n-gram-Tabelle),
+   NICHT GLM-5.3-Flash. Kein einziger String "glm"/"language_model"/
+   "Glm5Next" im gesamten Arbeitsbaum (grep über *.md, *.py, *.sh, *.yml, *.json).
+2. Sein MoE hat 512 Experten (CHANGELOG 0.5.3), nicht 288. Die 288 sind
+   GLM-5.3-Flash (n_routed_experts=288, +1 shared, 8 aktiv/Tok — verifiziert
+   aus colibri_store/glm53_flash/config.json, text_config).
+3. Es gibt KEINEN Loader-Sourcecode im Repo. Der Motor ist ein geschlossenes
+   Binary (flash_serve) im Docker-Image ghcr.io/peonist-ai/halogen-flash-server.
+   Das Repo liefert nur: README (1008 Z.), CHANGELOG, docs/QUANT.md,
+   docs/FLAGS.md, deploy/entrypoint.sh, docker-compose.yml, 2 Bench-Tools.
+   -> Tensor-Remapping-Logik ist hier NICHT extrahierbar.
+
+Was der Task eigentlich wollte (GLM-5.3-Flash-Remapping, 288-Experten-
+Management) ist HaloStream/Colibri's EIGENE Aufgabe — dazu existiert bereits
+die Vorarbeit von heute Morgen in diesem spike/-Verzeichnis.
+
+=== 1. KEY MAPPINGS FOUND ===
+
+In halogen-flash-server: KEINE. Kein Loader-Code, keine Tensor-Namen-
+Transformation dokumentiert. Was das Repo über Checkpoints verrät:
+
+- Eigenes Format ".hgn": HALOGEN_CHECKPOINT=/models/qwen38-flash-next-w4b.hgn
+  (115.55 GiB, 1.198 Tensoren). Custom Container, kein safetensors-Layout
+  im Dockers; Tensornamen intern unveröffentlicht.
+- Zwei-Dateien-Prinzip: Basis-Checkpoint + Quality-Sidecar
+  "<checkpoint>.overlay.hgn" (2.31 GiB, 723 nicht-Experten-Tensoren
+  rekalibriert, zwölf o_proj auf 8-Bit). Engine lädt Sidecar automatisch
+  wenn neben dem Checkpoint (HALOGEN_CK_OVERLAY, "none" = Kontrolle).
+- Quant-Politik (docs/QUANT.md): Trunk+Experten 4-Bit per-column-groups,
+  n-gram-Tabelle FP8 47.7 GiB GEPAGED (nicht resident), rank-1/conv1d/
+  Projection BF16 unverändert. bpw aus Tensor-Tabelle gemessen: 5.53.
+- Tokenizer: flaches Verzeichnis; HF-Cache-Snapshots (symlinks) brechen
+  im Container -> "cp -L" materialisieren. Ein Erkenntnis, die für unseren
+  colibri_store (echte Dateien, keine Symlinks) irrelevant ist.
+
+Vergleich mit HaloStream/Colibri-Ansatz (heute Morgen erarbeitet):
+- Colibri C-Loader erwartet "model.layers.%d.*"-Muster (binary_inspection.log
+  10:28): input_layernorm, post_attention_layernorm, MLA+MQA-Merge
+  (kv_a_proj_with_mqa, q_a/q_b/kv_b_proj), DeepSeek-Sparse-Attention-Indexer
+  (indexer.k_norm/.weights_proj/.wk/.wq_b), mlp.gate u.a.
+- GLM-5.3-Flash-HF-Checkpoint nutzt VL-Wrapper-Präfix "model.language_model."
+  (Glm5NextForConditionalGeneration, model_type glm5_next).
+- remap_glm53.py (heute 10:31): Zero-Copy-Lösung — patcht NUR
+  model.safetensors.index.json (Präfix-Strip model.language_model. -> model.),
+  physische Gewichte unberührt, Backup .pre_remap. 76.108 Tensoren über
+  62 Shards, Layer 0–44.
+- Fazit Mapping: Halogen hat für dieses Problem nichts Übertragbares; unser
+  Zero-Copy-Ansatz ist bereits implementiert und eleganter als alles, was
+  das Repo zeigt (das Problem umgehend, indem ein eigenes .hgn-Format
+  vorausgesetzt wird, das HF-Layout gar nicht erst auftauchen lässt).
+
+=== 2. EXPERT ROUTING STRATEGY ===
+
+Halogen (512-Experten-MoE, Qwen3.8-Flash-Next):
+- 0.5.3: Expert-Ordering je Layer per stabilem COUNT-SORT statt generellem
+  Vergleichs-Sort auf der CPU ("There are only 512 experts, so the ordering
+  can be counted out directly"). Resultat: 5–8 % schnellere Prefill,
+  Ausgaben byte-identisch (stabile Zählung auf gleichem Schlüssel => gleiche
+  Ordnung per Definition). Vorher: GPU wartete im Leerlauf auf CPU-Sort.
+- Routing-Tabellen-Validierung: Engine baut/validiert die Tabelle so, dass
+  sie keine Route beschreiben kann, die nicht existiert (CHANGELOG).
+- Experten 4-Bit per-column-group quantisiert; n-gram-Tabelle separat FP8
+  gepaged.
+- Kein Quellcode dazu — nur die beschriebene Mechanik in CHANGELOG/Docs.
+
+Übertrag auf GLM-5.3-Flash (288 routed + 1 shared, 8 aktiv/Tok,
+moe_router_dtype float32, routed_scaling_factor 2.5, num_hidden_layers 45):
+- Count-Sort-Idee überträgt sich 1:1 und ist bei 288 Experten noch
+  günstiger (kleinerer Wertebereich => weniger Zähleimer). Für Colibri's
+  C-Loader: Routing-Top-K (8) je Token, Bucket-Count je Expert statt
+  qsort — kein Numerik-Risiko, deterministisch.
+- Halogens Validierungsdisziplin ("keine Route, die es nicht gibt") lohnt
+  als C-Assert im HaloStream-Loader.
+
+=== 3. INTEGRATION VERDICT: PORTIERBARKEIT ===
+
+NICHT PORTIERBAR — der Loader selbst ist Closed Source im Docker-Binary
+(ghcr.io/peonist-ai/halogen-flash-server:0.6.0, ROCm 7.14-Stack:
+HSA/HIP-Runtime, hipBLASLt, rocBLAS laut THIRD-PARTY-NOTICES). Es gibt
+keinen Zeilen Code zum Übernehmen.
+
+Was als ARCHITEKTUR-REFERENZ übertragbar ist (allein aus Docs):
+- Count-Sort-Routing (Abschn. 2).
+- Page-Cache-Strategie: Gewichte per mlock resident; Kernel zählt gesperrte
+  Gewichte als reclaimable page cache => free/MemAvailable überzeichnet
+  ~68 GiB (Mlocked/Unevictable bleiben 0!). Server druckt Korrektur beim
+  Start. Kaltstart von NVMe ~18 s, warm 9 s; erster Start durch 68-GB-Disk-
+  Read begrenzt. Relevante Messlatte für Colibris NVMe-Streaming-Design.
+- Quality-Sidecar-2-Dateien-Prinzip: Basis-Checkpoint unverändert +
+  kleines Overlay für kalibrierte Präzision (723 Tensoren, 12 o_proj 8-Bit
+  = 0.09 % der Datei, statistical tie mit BF16-Ceiling). Idee für unser
+  fp8-GLM: Sidecar statt Re-Quant des 328-GB-Körpers.
+- KV-Pool-Sharing (seit 0.3): gemeinsamer Positionspool statt pro-Slot-KV,
+  Slot kostet nur ~115 MiB Zustand; 4 x 262k ctx auf 128 GB machbar.
+- MTP-Spekulation ("serial,mtp"): MTP-Head Depth-1 als drafter — passt
+  direkt zu GLM-5.3-Flash (num_nextn_predict_layers=1) und Colibris
+  int8-MTP-Erfordernis.
+- Paged n-gram-Tabelle: 47.7 GiB nur bei Bedarf von Disk gelesen; kleiner
+  KV-Pool lässt mehr Page-Cache fürs Routing. Analoges Problem/GLM-Pendant
+  prüfen.
+
+Hardware-Benchmark-Realität (Strix Halo, gleiche Chipklasse wie 8060S):
+halogen erreicht 1.424 tok/s Prefill, 41.7 tok/s spekulatives Decode bei
+32K-Prompt — ca. 4x schneller als beste Konkurrenz (EngramHalo.cpp,
+ROCmFP4, CIRU-IU4). Zeigt, was auf diesem Silicon mit 4-Bit-MoE möglich
+ist — die Messlatte für Colibris Vulkan-Spike.
+
+=== FAZIT ===
+
+halogen-flash-server ist ein Dokumentations-/Bench-Repo für ein geschlossenes
+ROCm-Binary. Für die gestellte Frage (GLM-5.3-Flash-Tensor-Remapping,
+288-Experten-Routing, NVMe-Mechanik) liefert es KEINEN Code, aber drei
+echt nützliche Architektur-Ideen: Count-Sort-Routing, Page-Cache/mlock-
+Startegies mit ehrlicher Speicherreporting, Quality-Sidecar. Die konkrete
+GLM-5.3-Flash-Remapping-Arbeit ist bei uns bereits besser aufgehoben:
+remap_glm53.py (Zero-Copy-Index-Patch) + Colibri-C-Loader-Muster aus
+binary_inspection.log. Kein Merge nötig, kein Merge möglich.
+
+Querverweis Colibri-Download: läuft parallel als systemd-Unit
+colibri-glm53-dl (Stand beim Verfassen: 18 GB von 328 GB, aktiv).
+
+=== ENDE ===

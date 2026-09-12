@@ -1,0 +1,101 @@
+=== HaloStream / Colibri – HuggingFace MoE Model Audit ===
+Time: 2026-09-12 10:12:30
+
+## AUDIT RESULTS
+
+### DeepSeek-V2.5 MoE
+Repo: deepseek-ai/DeepSeek-V2.5
+- Safetensors: 55 (model-00001-of-000055.safetensors ... model-00055-of-000055.safetensors)
+- Has model.safetensors.index.json: YES
+- Layer range: 0 to 59 (60 unique layers)
+- Unique shards referenced: 55
+- model.norm.weight: YES (PRESENT in weight map)
+- lm_head.weight: YES (PRESENT in weight map)
+- COMPLETE: YES ✅
+
+### DeepSeek-V2 MoE
+Repo: deepseek-ai/DeepSeek-V2
+- Safetensors: 55 (model-00001-of-000055.safetensors)
+- Has model.safetensors.index.json: YES
+- Layer range: 0 to 59 (60 unique layers)
+- Unique shards referenced: 55
+- model.norm.weight: YES
+- lm_head.weight: YES
+- COMPLETE: YES ✅
+
+### DeepSeek-V3 (NEW)
+Repo: deepseek-ai/DeepSeek-V3
+- Safetensors: 163
+- Has model.safetensors.index.json: YES
+- Layer range: 0 to 61 (62 unique layers)
+- Unique shards referenced: 163
+- model.norm.weight: YES
+- lm_head.weight: YES
+- COMPLETE: YES ✅
+- ⚠️ WARNING: ~2.4TB total size — too large for this system
+
+### Mistral 8x22B MoE
+Repo: mistralai/Mixtral-8x22B-v0.1
+- Safetensors: 59 (model-00001-of-00059.safetensors)
+- Has model.safetensors.index.json: YES
+- Layer range: 0 to 55 (56 unique layers)
+- Unique shards referenced: 59
+- model.norm.weight: only per-layer norms (no single final model.norm.weight)
+- lm_head.weight: YES
+- COMPLETE: YES (architecture uses module-level final norms, not a single tensor)
+
+### Mistral 8x7B MoE
+Repo: mistralai/Mixtral-8x7B-v0.1
+- Safetensors: 19 (model-00001-of-00019.safetensors)
+- Has model.safetensors.index.json: YES
+- Layer range: 0 to 31 (32 unique layers)
+- Unique shards referenced: 19
+- model.norm.weight: only per-layer norms
+- lm_head.weight: YES
+- COMPLETE: YES
+
+## VALIDATION SUMMARY
+
+| Model                | Layers | Complete | model.norm | lm_head | Est. Size |
+|----------------------|--------|----------|------------|---------|-----------|
+| DeepSeek-V2.5        | 0-59   | YES      | YES        | YES     | ~370 GB   |
+| DeepSeek-V2          | 0-59   | YES      | YES        | YES     | ~350 GB   |
+| DeepSeek-V3          | 0-61   | YES      | YES        | YES     | ~2400 GB  |
+| Mistral 8x22B        | 0-55   | YES      | partial*   | YES     | ~280 GB   |
+| Mistral 8x7B         | 0-31   | YES      | partial*   | YES     | ~95 GB    |
+
+* Mistral architecture uses model.layers[N].post_attention_layernorm as final output norm — not a single model.norm.weight tensor.
+
+## RECOMMENDATION
+
+**PRIMARY CANDIDATE: deepseek-ai/DeepSeek-V2.5**
+
+Reasons:
+1. model.norm.weight PRESENT and verified in weight map
+2. lm_head.weight PRESENT and verified
+3. 60 layers (0–59), 55 shards — ~370 GB on NVMe
+4. MoE architecture compatible with Colibri streaming engine (glm_moe_dsa or DeepSeekMoE mode)
+5. deepseek-ai hosted — reliable, complete repo
+
+**ARCHITECTURE NOTE:**
+DeepSeek-V2.5 uses DeepSeekMoE architecture:
+- 60 layers, 128 attention heads
+- Multi-head Latent Attention (MLA)
+- Fine-grained expert splitting with shared experts
+- Colibri may need `glm_moe_dsa` mode or new `deepseek_moe` backend flag
+
+**CRITICAL UNKNOWN:** Colibri v1.10.2 currently has `glm_moe_dsa` and `integrated_gpu` backends. DeepSeekMoE architecture has different expert routing than GLM's MoE. This needs code validation before download.
+
+## NEXT ACTION
+
+Before downloading 370 GB:
+1. Validate Colibri source: does it support DeepSeekMoE architecture natively?
+2. If not, can `glm_moe_dsa` mode load DeepSeek-V2.5 weights with tensor name mapping?
+3. If yes → proceed with download. If no → Spike B (ROCm/HIP) or ask maintainer.
+
+## READY TO DOWNLOAD
+Once architecture compatibility is confirmed:
+    HF_HUB_DISABLE_XET=1 huggingface-cli download \
+      deepseek-ai/DeepSeek-V2.5 \
+      --local-dir /home/sascha/models/colibri_store/deepseek-v25 \
+      --local-dir-use-symlinks False

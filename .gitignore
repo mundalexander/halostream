@@ -22,3 +22,9 @@ __pycache__/
 # Sonstiges
 *.log
 .DS_Store
+
+# HaloStream-Spike: Referenz-Klone & Build-Artefakte
+spike/halogen_ref/
+spike/bin/
+spike/pkg/
+spike/third_party/

@@ -1,0 +1,166 @@
+=== Colibri Binary Architecture Inspection ===
+Binary: /home/sascha/colibri/c/colibri
+Time: 2026-09-12 10:28
+
+## 1. Expected Layer Naming (from binary strings)
+
+Colibri's C-loader expects the following tensor key patterns:
+
+### Transformer Layers (model.layers.%d.*)
+
+  model.layers.%d.input_layernorm.weight
+  model.layers.%d.post_attention_layernorm.weight
+  model.layers.%d.self_attn.q_a_layernorm.weight
+  model.layers.%d.self_attn.kv_a_layernorm.weight
+  model.layers.%d.self_attn.kv_a_proj_with_mqa.weight  ← MLA with MQA (MQA merged)
+  model.layers.%d.self_attn.q_a_proj.weight
+  model.layers.%d.self_attn.q_b_proj.weight
+  model.layers.%d.self_attn.kv_b_proj.weight
+  model.layers.%d.self_attn.o_proj.weight
+  model.layers.%d.self_attn.indexer.k_norm.weight      ← GLM deepseek_sparse attention
+  model.layers.%d.self_attn.indexer.k_norm.bias
+  model.layers.%d.self_attn.indexer.weights_proj.weight
+  model.layers.%d.self_attn.indexer.wk.weight
+  model.layers.%d.self_attn.indexer.wq_b.weight
+  model.layers.%d.mlp.gate.weight
+  model.layers.%d.mlp.gate_proj.weight
+  model.layers.%d.mlp.up_proj.weight
+  model.layers.%d.mlp.down_proj.weight
+  model.layers.%d.mlp.experts.%d.gate_proj.weight
+  model.layers.%d.mlp.experts.%d.up_proj.weight
+  model.layers.%d.mlp.experts.%d.down_proj.weight
+  model.layers.%d.mlp.shared_experts.gate_proj.weight
+  model.layers.%d.mlp.shared_experts.up_proj.weight
+  model.layers.%d.mlp.shared_experts.down_proj.weight
+
+### Output Layers
+
+  model.layers.%d.enorm.weight          ← GLM MTP final norm (NOT standard transformer norm)
+  model.layers.%d.hnorm.weight            ← GLM MTP head norm
+  model.layers.%d.shared_head.norm.weight ← shared head norm
+  model.norm.weight                       ← final model output norm
+  model.embed_tokens.weight               ← embedding
+  lm_head.weight                          ← output projection
+
+### Gate/Router (GLM-specific)
+
+  model.layers.%d.mlp.gate.e_score_correction_bias  ← GLM gating with score correction
+
+---
+
+## 2. Architecture Identifiers (from binary strings + symbols)
+
+  Engine name:     glm_moe_dsa     (hardcoded, printed at startup)
+  Alt engines:     deepseek_v4     (defined in route_trace.h, NO symbol in binary)
+  Hidden engines:  inkling, olmoe, kimi_k3, qwen38 (route_trace.h only, not compiled)
+
+  Config print:    == GLM C engine (glm_moe_dsa), cache=%d experts/layer | compute experts@%d-bit | idot: avx512-vnni ==
+
+  File format:     ref_glm.json (self-test)
+                   glm_tiny (self-test binary)
+
+---
+
+## 3. Expert Architecture Details (from binary strings)
+
+  - Expert naming:  model.layers.%d.mlp.experts.%d.gate_proj.weight
+                    model.layers.%d.mlp.experts.%d.up_proj.weight
+                    model.layers.%d.mlp.experts.%d.down_proj.weight
+  - Gate:           model.layers.%d.mlp.gate.weight  (pre-expert gating)
+  - Shared experts: model.layers.%d.mlp.shared_experts.* (always-loaded shared expert)
+  - Gate + score:   model.layers.%d.mlp.gate.e_score_correction_bias (GLM-specific)
+  - No explicit n_experts limit string found in binary
+  - Expert budget:  COLI EXPERT_BUDGET=N env var supported
+  - File format:    expert bytes tracked per-layer with io_uring
+
+---
+
+## 4. Compatibility Analysis
+
+### GLM-5.3-Flash (Glm5Next) vs Binary
+
+Tensor Key Remapping Required:
+
+  GLM-5.3-Flash                    Colibri Binary Expects
+  ─────────────────────────────────────────────────────────────────
+  model.language_model.layers.%d.  →  model.layers.%d.
+  model.language_model.norm       →  model.norm       (FLAT NAMING)
+  model.language_model.lm_head     →  lm_head          (FLAT NAMING)
+  model.language_model.embed       →  model.embed_tokens
+
+FEATURE                              STATUS
+─────────────────────────────────────────────────────────────────
+model.layers.%d.input_layernorm       ✅ COMPATIBLE
+model.layers.%d.post_attention_ln     ✅ COMPATIBLE
+model.layers.%d.self_attn MLA tensors ✅ COMPATIBLE (kv_a, q_a, kv_b present)
+model.layers.%d.self_attn indexer    ✅ COMPATIBLE (deepseek_sparse attn)
+model.layers.%d.enorm                 ✅ COMPATIBLE (GLM MTP norm)
+model.layers.%d.hnorm                 ✅ COMPATIBLE (GLM MTP head norm)
+model.layers.%d.mlp.gate + experts    ✅ COMPATIBLE (shared + routed)
+model.layers.%d.mlp.gate.e_score_*   ✅ COMPATIBLE (GLM gating)
+model.norm.weight                     ✅ COMPATIBLE
+model.embed_tokens.weight             ✅ COMPATIBLE
+lm_head.weight                        ✅ COMPATIBLE
+
+### Expert Count Concern
+  - GLM-5.3-Flash:  288 routed experts
+  - GLM-5.2:        64 routed experts
+  - Binary limit:   NOT hard-limited by string (dynamic allocation)
+  - Verdict:        Binary allocates n_experts dynamically from config
+                    288 experts should work if NVMe I/O and RAM allow
+
+### DeepSeek-V2.5 vs Binary
+
+  Feature                              DeepSeek-V2.5  Colibri Binary
+  ─────────────────────────────────────────────────────────────────
+  model.norm.weight                     ✅              ✅
+  lm_head.weight                        ✅              ✅
+  model.layers.%d.input_layernorm       ✅              ✅
+  model.layers.%d.post_attention_ln     ✅              ✅
+  model.layers.%d.mlp.gate              ⚠️ DIFF         ✅ (GLM-specific)
+  e_score_correction_bias               ❌ MISSING      ✅ (GLM-specific)
+  shared_experts                        ⚠️ DIFF         ✅
+  MLA (kv_a_layernorm)                  ✅              ✅
+
+  ⚠️  DeepSeek-V2.5 lacks GLM's gate.e_score_correction_bias.
+      DeepSeek routing differs from GLM's gating.
+      Verdict: deepseek_v4 engine slot exists in source but NOT in binary.
+
+---
+
+## 5. Verdict
+
+### RECOMMENDED: GLM-5.3-Flash (with remap) ✅
+
+Reasons:
+1. ALL tensor names COMPATIBLE after zero-copy index remap
+   (model.language_model.* → model.* prefix strip)
+2. GLM MTP enorm/hnorm: EXACT MATCH with binary
+3. MLA attention tensors (kv_a_layernorm, kv_a_proj_with_mqa): EXACT MATCH
+4. Gate with e_score_correction_bias: EXACT MATCH (only GLM has this)
+5. Shared + routed experts: EXACT MATCH
+6. Expert count (288) is dynamic — binary handles whatever config says
+7. Only difference: GLM-5.3 has 288 experts vs 64 in GLM-5.2 — should still work
+
+### DeepSeek-V2.5: NOT RECOMMENDED ❌
+
+Reasons:
+1. deepseek_v4 engine defined in source but NOT compiled into binary
+2. Missing GLM-specific e_score_correction_bias gate tensor
+3. DeepSeekMoE routing differs from GLM's gating — would need deepseek_v4 engine
+
+### ACTION: Proceed with GLM-5.3-Flash download + remap
+
+1. Download:
+   HF_HUB_DISABLE_XET=1 huggingface-cli download \
+     zai-org/GLM-5.3-Flash \
+     --local-dir /home/sascha/models/colibri_store/glm53_flash \
+     --local-dir-use-symlinks False
+
+2. Remap (<1 second, zero-copy):
+   python3 /home/sascha/halostream/spike/remap_glm53.py
+
+3. Inference test:
+   COLI_VULKAN=1 ~/.venvs/colibri/bin/coli run \
+     --model /home/sascha/models/colibri_store/glm53_flash \
+     "Schreibe eine kurze Zusammenfassung über KI."

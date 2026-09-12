@@ -1,0 +1,85 @@
+=== GLM-5.3-Flash HF Repo Audit ===
+Repo: zai-org/GLM-5.3-Flash
+Time: 2026-09-12 10:17
+
+## REPO STATUS: COMPLETE ✅
+
+## FILE INVENTORY
+- Total files: 73
+- Safetensors: 62 shards (model-00001-of-00062 … model-00062-of-00062)
+- Config files: config.json, generation_config.json, processor_config.json, tokenizer_config.json
+- Has model.safetensors.index.json: YES ✅
+- Weight map entries: 76,108 tensors across 62 shards
+
+## LAYER CHECK
+- Expected: Layers 0–44 (45 transformer layers)
+- Found: Layers 0–44 (all 45 present) ✅ + Layer 45 (MTP residual head, expected)
+- Missing layers: NONE ✅
+- Extra layer 45: model.language_model.layers.45.* → MTP (Multi-Token Prediction) head — standard for GLM models, NOT a missing layer
+
+## FINAL NORM STATUS
+- model.norm.weight (flat): NOT present (not used in Glm5Next architecture)
+- Final output norm: YES — `model.language_model.layers.45.enorm.weight`
+  - Stored in: model-00001-of-00062.safetensors
+  - Shape: [4096] (hidden_size)
+  - This IS the final output norm, stored in the MTP row at layer index 45
+- Additional final norms in layer 45:
+  - model.language_model.layers.45.hnorm.weight (head norm)
+  - model.language_model.layers.45.input_layernorm.weight
+
+## OUTPUT HEAD
+- lm_head.weight: FOUND ✅ (model.language_model.lm_head.weight)
+  - Stored in: model-00002-of-00062.safetensors
+
+## EMBEDDING
+- model.language_model.embed_tokens.weight: FOUND ✅
+  - Stored in: model-00001-of-00062.safetensors
+
+## SHARD COUNT
+- 62 safetensor files confirmed
+- All 62 shards referenced in model.safetensors.index.json weight map
+
+## ARCHITECTURE (Glm5NextForConditionalGeneration)
+- num_hidden_layers: 45
+- n_routed_experts: 288
+- num_experts_per_tok: 8
+- Sparse MLP layers: 42 (indices 3-44)
+- Dense MLP layers: 3 (indices 0-2)
+- Attention: Hybrid linear_attention (first 3 layers) + deepseek_sparse_attention (every 4th layer)
+- MLA: q_lora_rank=1536, kv_lora_rank=512
+- Precision: bfloat16
+- Quantization: e4m3 (experts only)
+- Total parameters: 320B (18B active per token)
+- Vision encoder: YES (GLM-5.3-Flash is vision-capable)
+
+## CRITICAL COMPATIBILITY NOTE ⚠️
+Tensor naming convention: `model.language_model.*` (NOT `model.*`)
+This is DIFFERENT from GLM-5.2 which uses `model.*` directly.
+
+Colibri v1.10.2 currently supports:
+  - glm_moe_dsa (GLM-5.2/5.3 base)
+  - deepseek_v4 (DeepSeek-V3/V2)
+  - inkling, olmoe, kimi_k3, qwen38
+
+Glm5Next is a NEW variant. Tensor name mapping may be needed:
+  - GLM-5.3-Flash: model.language_model.layers.N.*  (language_model prefix)
+  - Colibri expects: model.layers.N.* (no prefix)
+
+## DOWNLOAD ESTIMATE
+- Total size: ~195 GB on NVMe
+- Files: 62 safetensor shards + 11 config/tokenizer files
+- Shard size: ~3.1 GB per shard average
+
+## NEXT ACTION
+Ready to initiate validated download for zai-org/GLM-5.3-Flash.
+
+Before running Colibri inference:
+  1. Verify tensor name mapping (model.language_model.* → model.*) OR
+  2. Confirm Colibri's glm_moe_dsa engine handles the language_model prefix automatically
+  3. If not: Spike C (tensor name remapping tool)
+
+RECOMMENDED DOWNLOAD COMMAND:
+    HF_HUB_DISABLE_XET=1 huggingface-cli download \
+      zai-org/GLM-5.3-Flash \
+      --local-dir /home/sascha/models/colibri_store/glm53_flash \
+      --local-dir-use-symlinks False

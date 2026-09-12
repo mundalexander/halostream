@@ -1,8 +1,12 @@
-# colibri-rocm
+# HaloStream
 
-Portierung der [Colibri](https://github.com/JustVugg/colibri)-C-Engine auf AMD ROCm/HIP,
-um MoE-Modelle der GLM/Kimi-Klasse (300B–744B) per NVMe-Streaming auf dem
-GMKtec EVO-X3 (AMD APU, unified memory) laufen zu lassen.
+**GLM-5.3-Flash lokal auf dem GMKtec EVO-X3 betreiben** — mit der
+[Colibri](https://github.com/JustVugg/colibri)-C-Engine, NVMe-Streaming und
+(geplant) GPU-Beschleunigung über Vulkan.
+
+> Früher `colibri-rocm` — umbenannt am 2026-09-12 (GitHub-Redirect bleibt aktiv).
+> Die Engine selbst heißt weiter Upstream `colibri` (JustVugg); HaloStream ist
+> unser Deployment-, Port- und Betriebsprojekt.
 
 ## Zielhardware
 
@@ -13,49 +17,55 @@ GMKtec EVO-X3 (AMD APU, unified memory) laufen zu lassen.
 | RAM | 128 GB unified (CPU+GPU geteilt!) |
 | Storage | NVMe, ~10 GB/s gemessen |
 
-## Ausgangslage (Stand 2026-09-11)
+## Mission
 
-- ✅ Colibri 1.10.2 CPU-Build läuft (`/home/sascha/colibri`, venv `~/.venvs/colibri`)
-- ✅ `coli` CLI funktioniert, Model-Store `/home/sascha/models/colibri_store` (10.1 GB/s I/O)
-- ✅ `hipcc` 5.7 vorhanden (Ubuntu-Paket) — **aber zu alt für gfx1151**
-- ✅ ROCm 7.2 liegt bereits unter `~/local/rocm-extract` (aus XTTS-Projekt, gfx1151-fähig)
-- ❌ Kein HIP-Backend in Colibri (nur CUDA, Metal, Vulkan)
-- ❌ hipBLAS/rocBLAS für ROCm 7.2 noch nicht verifiziert
+1. **GLM-5.3-Flash** (321B MoE, fp8, 328 GB) per NVMe-Streaming auf der CPU
+   betreiben — erste Inference heute abend.
+2. GPU-Pfad über Vulkan evaluieren (Spike A: Build SUCCESS, Runtime-Test
+   ausstehend — Colibri lädt nur volle Modelle, keine Tiny-Fixtures).
+3. **Halogen** (peonist-ai/halogen-flash-server) als Serving-Referenz für
+   Qwen3.8-Flash-Next auf demselben Silicon — Messlatte: 1.424 tok/s Prefill,
+   41,7 tok/s spekulativer Decode. Ziel: schneller als unser aktuelles
+   LM-Studio-Setup.
 
-## Strategische Optionen
+## Modell-Fakten (GLM-5.3-Flash)
 
-1. **Vulkan-Pfad** — Colibri hat bereits `backend_vulkan.c`. Wenn der auf RADV
-   (gfx1151) läuft, ist das der mit Abstand günstigste Weg. **Zuerst evaluieren!**
-2. **HIP-Port** — `backend_cuda.cu` → HIP mit ROCm 7.2 Toolchain.
-   Vorteil unified memory: kein PCIe-Kopieren nötig, GPU sieht dieselben PAGES.
-3. **CPU-only AVX-512** — funktioniert bereits, ~0.5–2 tok/s, nur als Fallback/Baseline.
+- Architektur: `Glm5NextForConditionalGeneration` (model_type `glm5_next`,
+  VL-Wrapper — deshalb Prefix-Remap nötig)
+- 45 Transformer-Layer, **288 geroutete + 1 shared Experten**, 8 aktiv/Token
+- MLA + MQA + DeepSeek-Sparse-Indexer, MTP-Head (`num_nextn_predict_layers=1`)
+- Checkpoint: **fp8**, 62 Shards, 76.108 Tensoren, **328 GB**
+  (zai-org/GLM-5.3-Flash — es gibt KEINE int4-Variante auf HF)
+- Colibri-Loader erwartet `model.layers.N.*` → Zero-Copy-Remap über die
+  Index-JSON (`spike/remap_glm53.py`; physische Shards unberührt, Backup
+  `.pre_remap`)
+- Engine-Support nativ: `c/glm53.c` im Upstream
+  („GLM-5.3-Flash inference engine in pure C"); Streaming-Design ist für
+  genau diese Größe gebaut (Upstream-Kommentar: „391 GB container, 25 GB RAM")
 
-## Meilensteine
+## Status (2026-09-12)
 
-- [ ] M0: Toolchain-Audit (erledigt, siehe `docs/audit-2026-09-11.md`)
-- [ ] M1: Feasibility-Spike — Vulkan-Backend auf gfx1151 testen; hipBLAS-Bench mit ROCm 7.2
-- [ ] M2: Go/No-Go — Entscheidung Vulkan vs. HIP vs. CPU-only
-- [ ] M3: Backend-Port (Kernel + Memory-Tiering-Anbindung)
-- [ ] M4: Integration `coli serve` Port 8090, OpenAI-API
-- [ ] M5: Benchmark GLM-5.3-Flash (321B int4, ~195 GB) vs. Baseline
+- [x] Phase 0: Colibri-Build (venv `~/.venvs/colibri`), Model-Store, 10,1 GB/s NVMe-I/O
+- [x] Umbenennung colibri-rocm → **HaloStream** (GitHub + lokal)
+- [x] Vulkan-Spike A: **BUILD SUCCESS** (Runtime-GPU-Test braucht das Modell)
+- [~] Download GLM-5.3-Flash läuft (systemd `colibri-glm53-dl`, ~24 MB/s)
+- [~] Halogen-Checkpoint (~130 GB): Auto-Kette startet nach GLM-Finish
+      (`halogen-ckpt-chain` → `/home/sascha/models/halogen_store`)
+- [ ] Erster Load + Chat mit `coli` (Runbook in PLAN.md)
+- [ ] Halogen-Deployment per Docker + Benchmark vs LM Studio
 
-## Risiken
+## Struktur
 
-- gfx1151-Support in ROCm 7.2 ist für XTTS (PyTorch) bewährt, aber rocBLAS-GEMM
-  auf einer 40-CU-iGPU bringt evtl. wenig Gewinn gegenüber 16 Zen5-Kernen.
-- Unified Memory: GPU-Compute konkurriert mit CPU um dieselbe RAM-Bandwidth (~256 GB/s).
-  Der Colibri-Bottleneck ist aber ohnehin Storage→RAM Streaming.
-- 370 GB Modell-Download: nur mit `hf` resume-fähig laden, Store bleibt auf NVMe.
+- `PLAN.md` — Phasen, Entscheidungen, Runbook
+- `docs/` — Audits & Benchmarks
+- `patches/` — Patches gegen Upstream (maintainable, ggf. PR einreichen)
+- `scripts/` — Betriebsskripte (`chain_halogen_download.sh`)
+- `spike/` — Spike-Artefakte (Remap-Skript, Audits, Halogen-Inspektion)
 
-## Projektstruktur
+## Regeln
 
-```
-colibri-rocm/
-├── README.md          # dieses Dokument
-├── PLAN.md            # detaillierter Phasenplan
-├── docs/              # Audits, Messungen, Entscheidungen
-├── spike/             # Wegwerf-Tests (Vulkan/HIP-Benchmarks)
-└── patches/           # Patches gegen upstream colibri
-```
-
-Upstream: https://github.com/JustVugg/colibri (Patches fließen idealerweise zurück).
+- Kein 370-GB-Download (GLM-5.2 int4) vor der Phase-2-Entscheidung.
+- Upstream respektieren: Patches maintainable halten, ggf. PR einreichen.
+- Alle Messungen in `docs/` ablegen (Datum, Kommando, Ergebnis).
+- Große Downloads nur als systemd-User-Units (Session-Kinder sterben mit
+  Gateway-Restarts — gelernt am 2026-09-12).

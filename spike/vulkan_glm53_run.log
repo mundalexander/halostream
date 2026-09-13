@@ -31,14 +31,14 @@
 [remap]     -> model.layers.0.mlp.down_proj.weight
 [remap]   model.language_model.layers.0.mlp.down_proj.weight_scale_inv
 [remap]     -> model.layers.0.mlp.down_proj.weight_scale_inv
-[remap] 
+[remap]
 Critical tensor check after remap:
 [remap]   FOUND: model.layers.0.input_layernorm.weight  [model-00002-of-00062.safetensors]
 [remap]   FOUND: model.layers.44.post_attention_layernorm.weight  [model-00054-of-00062.safetensors]
 [remap]   FOUND: model.norm.weight  [model-00062-of-00062.safetensors]
 [remap]   MISSING: model.lm_head.weight  [N/A]
 [remap]   FOUND: model.embed_tokens.weight  [model-00001-of-00062.safetensors]
-[remap] 
+[remap]
 Remap complete. Physical shard files were NOT modified.
 [remap] Original index backed up to: /home/sascha/models/colibri_store/glm53_flash/model.safetensors.index.json.pre_remap
 [remap] Patched index written to: /home/sascha/models/colibri_store/glm53_flash/model.safetensors.index.json
@@ -1062,7 +1062,7 @@ glm53 engine is not built. Run: make -C c glm53
      )·>     tiny engine, immense model
     / \      GLM-5.3-Flash · 321B · 328 GB on disk
              run
-             
+
   ──────────────────────────────────────────────────────────
 --gpu needs the CUDA build: the engine binary is CPU-only
 [2026-09-12 21:56:48] Vulkan-Run RC=1 · Dauer: 0.1s
@@ -1073,7 +1073,1530 @@ model.language_model.layers.0.mlp.gate_proj.weight: tensor 'model.language_model
      )·>     tiny engine, immense model
     / \      GLM-5.3-Flash · 321B · 328 GB on disk
              run
-             
+
   ──────────────────────────────────────────────────────────
 [2026-09-12 21:56:51] CPU-Run RC=1 · Dauer: 3.2s
 [2026-09-12 21:56:51] ===== Phase B+C v2 Ende =====
+[2026-09-13 12:27:58] ===== HaloStream Phase B+C v2: erster Start =====
+[2026-09-13 12:27:58] ABBRUCH: Roh-Checkpoint der HF-Variante erkannt (model.language_model.*).
+[2026-09-13 12:27:58] Colibri erwartet ein konvertiertes GLM-5.3-Container, nicht den Original-HF-Snapshot.
+[2026-09-13 12:27:58] Nächster Schritt: python3 /home/sascha/colibri/c/tools/convert_glm53.py --outdir /home/sascha/models/colibri_store/glm53_i4 --min-free-gb 30
+[2026-09-13 12:37:17] ===== HaloStream Phase B+C v2: erster Start =====
+[2026-09-13 12:37:17] Modell: konvertierter Colibri-Container /home/sascha/models/colibri_store/glm53_i4
+[2026-09-13 12:37:17] Sanity: 62/62 Shards, 181 GB
+[2026-09-13 12:37:17] RAM verfügbar: 27 GiB
+[2026-09-13 12:37:17] === Phase B2: coli doctor ===
+{
+  "schema_version": 1,
+  "status": "warning",
+  "model": "/home/sascha/models/colibri_store/glm53_i4",
+  "mode": "deep",
+  "checks": [
+    {
+      "id": "model.path",
+      "status": "pass",
+      "summary": "model directory is readable",
+      "details": {
+        "path": "/home/sascha/models/colibri_store/glm53_i4"
+      }
+    },
+    {
+      "id": "model.config",
+      "status": "pass",
+      "summary": "config.json is valid"
+    },
+    {
+      "id": "model.family",
+      "status": "pass",
+      "summary": "GLM-5.3-Flash family is registered",
+      "details": {
+        "family_id": "glm53",
+        "model_type": "glm5_next",
+        "descriptor": {
+          "id": "glm53",
+          "model_types": [
+            "glm5_next",
+            "glm5_next_text"
+          ],
+          "display_name": "GLM-5.3-Flash",
+          "display_scale": "321B",
+          "engine_artifact": "glm53",
+          "engine_aliases": [],
+          "engine_group": "glm53",
+          "internal_arch": "glm53",
+          "build_target": "glm53",
+          "process_names": [
+            "glm53"
+          ],
+          "default_model_id": "glm-5.3-flash-colibri",
+          "cli_adapter": "glm53",
+          "gateway_adapter": "glm53",
+          "planner_id": "glm53_hybrid",
+          "supports_accelerator": true,
+          "limits": {
+            "default_context": 8192,
+            "max_context": 1048576,
+            "default_max_output": 1024,
+            "interactive_max_output": 16384,
+            "max_kv_slots": 16,
+            "implicit_cap": 0,
+            "context_env": "GLM53_MAXT"
+          },
+          "capabilities": {
+            "tools": true,
+            "grammar_payload": false,
+            "audio_payload": false,
+            "thinking": true
+          }
+        }
+      }
+    },
+    {
+      "id": "model.tokenizer",
+      "status": "pass",
+      "summary": "tokenizer.json found"
+    },
+    {
+      "id": "storage.persistence",
+      "status": "pass",
+      "summary": "model directory can store usage and KV state"
+    },
+    {
+      "id": "engine.binary",
+      "status": "pass",
+      "summary": "engine executable is ready",
+      "details": {
+        "path": "/home/sascha/colibri/c/glm53"
+      }
+    },
+    {
+      "id": "accelerator.gpu",
+      "status": "skip",
+      "summary": "no supported GPU detected; CPU path is available"
+    },
+    {
+      "id": "model.shards",
+      "status": "pass",
+      "summary": "safetensors headers are valid",
+      "details": {
+        "shards": 62,
+        "model_bytes": 194727335256
+      }
+    },
+    {
+      "id": "storage.disk",
+      "status": "pass",
+      "summary": "model backing store is available",
+      "details": {
+        "available_bytes": 237948542976,
+        "model_bytes": 194727335256
+      }
+    },
+    {
+      "id": "memory.ram",
+      "status": "pass",
+      "summary": "RAM budget is viable",
+      "details": {
+        "available_bytes": 29764214784,
+        "budget_bytes": 26192509009,
+        "cache_slots_per_layer": 25
+      }
+    },
+    {
+      "id": "placement.plan",
+      "status": "warn",
+      "summary": "cold expert misses may reach disk; normal decode speed depends on hit rate"
+    },
+    {
+      "id": "storage.ssd_probe",
+      "status": "skip",
+      "summary": "no cached probe yet; measured on the first Metal+darwin engine start"
+    },
+    {
+      "id": "model.container",
+      "status": "pass",
+      "summary": "all tensor headers and layouts are internally consistent",
+      "details": {
+        "shards": 62,
+        "tensors": 75922,
+        "header_bytes": 10364400,
+        "payload_bytes": 194716970360,
+        "payload_hashing": false
+      }
+    },
+    {
+      "id": "model.shard_sequence",
+      "status": "pass",
+      "summary": "all filename-declared shards are present",
+      "details": {
+        "declared_shards": 62,
+        "found_shards": 62
+      }
+    },
+    {
+      "id": "model.required",
+      "status": "pass",
+      "summary": "required core tensors are present",
+      "details": {
+        "required_roles": [
+          "token embedding",
+          "final norm",
+          "output head"
+        ],
+        "missing_roles": []
+      }
+    },
+    {
+      "id": "model.index",
+      "status": "skip",
+      "summary": "model index is not present"
+    },
+    {
+      "id": "storage.mirror",
+      "status": "skip",
+      "summary": "no mirror directory is configured"
+    }
+  ],
+  "plan": {
+    "version": 2,
+    "policy": {
+      "name": "quality",
+      "preserve_quantization": true,
+      "preserve_router": true,
+      "quality_preserving": true
+    },
+    "model": {
+      "path": "/home/sascha/models/colibri_store/glm53_i4",
+      "shards": 62,
+      "model_bytes": 194727335256,
+      "dense_bytes": 5459580105,
+      "dense_disk_bytes": 19411840376,
+      "expert_fixed_bytes": 0,
+      "expert_bytes": 175305129984,
+      "expert_count": 12384,
+      "expert_layers": 43,
+      "typical_expert_bytes": 14155776,
+      "max_expert_bytes": 14155776,
+      "expert_bytes_by_layer": {
+        "45": 14155776,
+        "10": 14155776,
+        "11": 14155776,
+        "12": 14155776,
+        "13": 14155776,
+        "14": 14155776,
+        "15": 14155776,
+        "16": 14155776,
+        "17": 14155776,
+        "18": 14155776,
+        "19": 14155776,
+        "20": 14155776,
+        "21": 14155776,
+        "22": 14155776,
+        "23": 14155776,
+        "24": 14155776,
+        "25": 14155776,
+        "26": 14155776,
+        "27": 14155776,
+        "28": 14155776,
+        "29": 14155776,
+        "3": 14155776,
+        "30": 14155776,
+        "31": 14155776,
+        "32": 14155776,
+        "33": 14155776,
+        "34": 14155776,
+        "35": 14155776,
+        "36": 14155776,
+        "37": 14155776,
+        "38": 14155776,
+        "39": 14155776,
+        "4": 14155776,
+        "40": 14155776,
+        "41": 14155776,
+        "42": 14155776,
+        "43": 14155776,
+        "44": 14155776,
+        "5": 14155776,
+        "6": 14155776,
+        "7": 14155776,
+        "8": 14155776,
+        "9": 14155776
+      },
+      "per_cap_bytes": 608698368,
+      "family_id": "glm53",
+      "model_type": "glm5_next",
+      "configured_experts": 288
+    },
+    "cpu": {
+      "physical_cores": 16,
+      "sockets": 1,
+      "thread_policy": "physical-cores"
+    },
+    "memory": {
+      "unified": false,
+      "available_bytes": 29764214784
+    },
+    "tiers": {
+      "disk": {
+        "role": "cold-backing",
+        "model_bytes": 194727335256,
+        "available_bytes": 237948542976,
+        "cold_expert_bytes": 159670477176
+      },
+      "ram": {
+        "role": "resident+warm-experts",
+        "available_bytes": 29764214784,
+        "budget_bytes": 26192509009,
+        "dense_bytes": 5459580105,
+        "runtime_bytes": 5098276096,
+        "expert_fixed_bytes": 0,
+        "sequence_state_bytes": 276824064,
+        "fixed_state_bytes": 155975680,
+        "workspace_bytes": 59506688,
+        "expert_cache_bytes": 15634652808,
+        "warm_expert_bytes": 15634652808,
+        "cache_slots_per_layer": 25
+      },
+      "vram": {
+        "role": "hot-experts",
+        "devices": [],
+        "budget_bytes": 0,
+        "hot_expert_bytes": 0,
+        "expert_capacity": 0,
+        "requires_host_backing": false
+      }
+    },
+    "expected_bottleneck": "disk expert misses",
+    "bottleneck_class": "disk",
+    "projected_hit_rate": 0.0892,
+    "tune": {
+      "DRAFT": {
+        "value": "0",
+        "reason": "low hit rate: MTP widens expert union, adds disk reads"
+      },
+      "PIPE": {
+        "value": "1",
+        "reason": "overlap disk reads with resident expert compute"
+      }
+    },
+    "next_actions": [
+      {
+        "id": "measure-storage",
+        "priority": "required",
+        "reason": "cold experts remain on disk and no trusted storage probe is available",
+        "command": "make -C c iobench && ./c/iobench"
+      },
+      {
+        "id": "measure-residency",
+        "priority": "recommended",
+        "reason": "projected expert residency is 9%",
+        "command": "coli tune --model <model>"
+      }
+    ],
+    "decisions": [
+      {
+        "target": "VRAM",
+        "reason": "profile-ranked hot experts"
+      },
+      {
+        "target": "RAM",
+        "reason": "warm experts execute on CPU without quality loss"
+      },
+      {
+        "target": "Disk",
+        "reason": "immutable recovery source for cold experts"
+      }
+    ],
+    "warnings": [
+      "cold expert misses may reach disk; normal decode speed depends on hit rate"
+    ],
+    "ssd_probe_gbs": null,
+    "ssd_probe_state": "absent"
+  }
+}
+[2026-09-13 12:37:17] === Phase B3: coli plan ===
+{
+  "version": 2,
+  "policy": {
+    "name": "quality",
+    "preserve_quantization": true,
+    "preserve_router": true,
+    "quality_preserving": true
+  },
+  "model": {
+    "path": "/home/sascha/models/colibri_store/glm53_i4",
+    "shards": 62,
+    "model_bytes": 194727335256,
+    "dense_bytes": 5459580105,
+    "dense_disk_bytes": 19411840376,
+    "expert_fixed_bytes": 0,
+    "expert_bytes": 175305129984,
+    "expert_count": 12384,
+    "expert_layers": 43,
+    "typical_expert_bytes": 14155776,
+    "max_expert_bytes": 14155776,
+    "expert_bytes_by_layer": {
+      "45": 14155776,
+      "10": 14155776,
+      "11": 14155776,
+      "12": 14155776,
+      "13": 14155776,
+      "14": 14155776,
+      "15": 14155776,
+      "16": 14155776,
+      "17": 14155776,
+      "18": 14155776,
+      "19": 14155776,
+      "20": 14155776,
+      "21": 14155776,
+      "22": 14155776,
+      "23": 14155776,
+      "24": 14155776,
+      "25": 14155776,
+      "26": 14155776,
+      "27": 14155776,
+      "28": 14155776,
+      "29": 14155776,
+      "3": 14155776,
+      "30": 14155776,
+      "31": 14155776,
+      "32": 14155776,
+      "33": 14155776,
+      "34": 14155776,
+      "35": 14155776,
+      "36": 14155776,
+      "37": 14155776,
+      "38": 14155776,
+      "39": 14155776,
+      "4": 14155776,
+      "40": 14155776,
+      "41": 14155776,
+      "42": 14155776,
+      "43": 14155776,
+      "44": 14155776,
+      "5": 14155776,
+      "6": 14155776,
+      "7": 14155776,
+      "8": 14155776,
+      "9": 14155776
+    },
+    "per_cap_bytes": 608698368,
+    "family_id": "glm53",
+    "model_type": "glm5_next",
+    "configured_experts": 288
+  },
+  "cpu": {
+    "physical_cores": 16,
+    "sockets": 1,
+    "thread_policy": "physical-cores"
+  },
+  "memory": {
+    "unified": false,
+    "available_bytes": 29760237568
+  },
+  "tiers": {
+    "disk": {
+      "role": "cold-backing",
+      "model_bytes": 194727335256,
+      "available_bytes": 237948514304,
+      "cold_expert_bytes": 159673977126
+    },
+    "ram": {
+      "role": "resident+warm-experts",
+      "available_bytes": 29760237568,
+      "budget_bytes": 26189009059,
+      "dense_bytes": 5459580105,
+      "runtime_bytes": 5098276096,
+      "expert_fixed_bytes": 0,
+      "sequence_state_bytes": 276824064,
+      "fixed_state_bytes": 155975680,
+      "workspace_bytes": 59506688,
+      "expert_cache_bytes": 15631152858,
+      "warm_expert_bytes": 15631152858,
+      "cache_slots_per_layer": 25
+    },
+    "vram": {
+      "role": "hot-experts",
+      "devices": [],
+      "budget_bytes": 0,
+      "hot_expert_bytes": 0,
+      "expert_capacity": 0,
+      "requires_host_backing": false
+    }
+  },
+  "expected_bottleneck": "disk expert misses",
+  "bottleneck_class": "disk",
+  "projected_hit_rate": 0.0892,
+  "tune": {
+    "DRAFT": {
+      "value": "0",
+      "reason": "low hit rate: MTP widens expert union, adds disk reads"
+    },
+    "PIPE": {
+      "value": "1",
+      "reason": "overlap disk reads with resident expert compute"
+    }
+  },
+  "next_actions": [
+    {
+      "id": "measure-storage",
+      "priority": "required",
+      "reason": "cold experts remain on disk and no trusted storage probe is available",
+      "command": "make -C c iobench && ./c/iobench"
+    },
+    {
+      "id": "measure-residency",
+      "priority": "recommended",
+      "reason": "projected expert residency is 9%",
+      "command": "coli tune --model <model>"
+    }
+  ],
+  "decisions": [
+    {
+      "target": "VRAM",
+      "reason": "profile-ranked hot experts"
+    },
+    {
+      "target": "RAM",
+      "reason": "warm experts execute on CPU without quality loss"
+    },
+    {
+      "target": "Disk",
+      "reason": "immutable recovery source for cold experts"
+    }
+  ],
+  "warnings": [
+    "cold expert misses may reach disk; normal decode speed depends on hit rate"
+  ],
+  "ssd_probe_gbs": null,
+  "ssd_probe_state": "absent"
+}
+[2026-09-13 12:37:17] === Phase C1: Baseline-Run (Vulkan, gfx1151) ===
+teacher_forcing 154822 46398 10633 35148 220 328 138048 11 5468 4368 7823 5999 5793 137690 730 46664 610 2528 273 5999 382 6569
+ Kein Vorwort, keine Einleitung, keine Überschrift. Beginne direkt mit dem ersten Satz.
+
+NVMe-Streaming bezeichnet das Auslagern von Modellgewichten großer Sprachmodelle auf NVMe-SSDs, um sie bei Bedarf direkt von der Festplatte in den Arbeitsspeicher zu streamen, statt das gesamte Modell im RAM oder VRAM zu halten. Dadurch können Modelle mit hunderten Milliarden Parametern auf Consumer-Hardware laufen, da die SSDs mit Geschwindigkeiten von mehreren Gigabyte pro Sekunde die Gewichte nahezu in Echtzeit nachladen. Der Kompromiss liegt in einer geringeren Inferenzgeschwindigkeit, da die Lesezugriffe auf die SSD zum Engpass werden, was NVMe-Streaming besonders für Anwendungen attraktiv macht, bei denen Latenz weniger kritisch ist als die Möglichkeit, sehr große Modelle überhaupt ausführen zu können.
+
+---
+
+**Was ist NVMe-Streaming?**
+
+NVMe-Streaming ist eine Technik, bei der die Gewichte eines großen Sprachmodells nicht vollständig im Arbeitsspeicher (RAM) oder Grafikspeicher (VRAM) gehalten werden, sondern auf einer schnellen NVMe-SSD liegen und bei Bedarf direkt von dort in den Speicher gestreamt werden. Der Begriff "Streaming" beschreibt hier das kontinuierliche Nachladen von Modellteilen, während das Modell eine Anfrage verarbeitet.
+
+**Warum ist das relevant?**
+
+Große Sprachmodelle mit hunderten Milliarden Parametern benötigen selbst in quantisierter Form oft mehrere hundert Gigabyte an Speicher. Ein Modell mit 405 Milliarden Parametern in 4-Bit-Quantisierung benötigt etwa 200 GB – mehr als die meisten Consumer-Systeme an RAM bieten. NVMe-Streaming erlaubt es, solche Modelle auf Hardware auszuführen, die eigentlich zu klein dimensioniert[2026-09-13 12:42:34] ===== HaloStream Phase B+C v2: erster Start =====
+[2026-09-13 12:42:34] Modell: konvertierter Colibri-Container /home/sascha/models/colibri_store/glm53_i4
+[2026-09-13 12:42:34] Sanity: 62/62 Shards, 181 GB
+[2026-09-13 12:42:34] RAM verfügbar: 30 GiB
+[2026-09-13 12:42:34] === Phase B2: coli doctor ===
+{
+  "schema_version": 1,
+  "status": "warning",
+  "model": "/home/sascha/models/colibri_store/glm53_i4",
+  "mode": "deep",
+  "checks": [
+    {
+      "id": "model.path",
+      "status": "pass",
+      "summary": "model directory is readable",
+      "details": {
+        "path": "/home/sascha/models/colibri_store/glm53_i4"
+      }
+    },
+    {
+      "id": "model.config",
+      "status": "pass",
+      "summary": "config.json is valid"
+    },
+    {
+      "id": "model.family",
+      "status": "pass",
+      "summary": "GLM-5.3-Flash family is registered",
+      "details": {
+        "family_id": "glm53",
+        "model_type": "glm5_next",
+        "descriptor": {
+          "id": "glm53",
+          "model_types": [
+            "glm5_next",
+            "glm5_next_text"
+          ],
+          "display_name": "GLM-5.3-Flash",
+          "display_scale": "321B",
+          "engine_artifact": "glm53",
+          "engine_aliases": [],
+          "engine_group": "glm53",
+          "internal_arch": "glm53",
+          "build_target": "glm53",
+          "process_names": [
+            "glm53"
+          ],
+          "default_model_id": "glm-5.3-flash-colibri",
+          "cli_adapter": "glm53",
+          "gateway_adapter": "glm53",
+          "planner_id": "glm53_hybrid",
+          "supports_accelerator": true,
+          "limits": {
+            "default_context": 8192,
+            "max_context": 1048576,
+            "default_max_output": 1024,
+            "interactive_max_output": 16384,
+            "max_kv_slots": 16,
+            "implicit_cap": 0,
+            "context_env": "GLM53_MAXT"
+          },
+          "capabilities": {
+            "tools": true,
+            "grammar_payload": false,
+            "audio_payload": false,
+            "thinking": true
+          }
+        }
+      }
+    },
+    {
+      "id": "model.tokenizer",
+      "status": "pass",
+      "summary": "tokenizer.json found"
+    },
+    {
+      "id": "storage.persistence",
+      "status": "pass",
+      "summary": "model directory can store usage and KV state"
+    },
+    {
+      "id": "engine.binary",
+      "status": "pass",
+      "summary": "engine executable is ready",
+      "details": {
+        "path": "/home/sascha/colibri/c/glm53"
+      }
+    },
+    {
+      "id": "accelerator.gpu",
+      "status": "skip",
+      "summary": "no supported GPU detected; CPU path is available"
+    },
+    {
+      "id": "model.shards",
+      "status": "pass",
+      "summary": "safetensors headers are valid",
+      "details": {
+        "shards": 62,
+        "model_bytes": 194727335256
+      }
+    },
+    {
+      "id": "storage.disk",
+      "status": "pass",
+      "summary": "model backing store is available",
+      "details": {
+        "available_bytes": 237943115776,
+        "model_bytes": 194727335256
+      }
+    },
+    {
+      "id": "memory.ram",
+      "status": "pass",
+      "summary": "RAM budget is viable",
+      "details": {
+        "available_bytes": 32309448704,
+        "budget_bytes": 28432314859,
+        "cache_slots_per_layer": 29
+      }
+    },
+    {
+      "id": "placement.plan",
+      "status": "warn",
+      "summary": "cold expert misses may reach disk; normal decode speed depends on hit rate"
+    },
+    {
+      "id": "storage.ssd_probe",
+      "status": "skip",
+      "summary": "no cached probe yet; measured on the first Metal+darwin engine start"
+    },
+    {
+      "id": "model.container",
+      "status": "pass",
+      "summary": "all tensor headers and layouts are internally consistent",
+      "details": {
+        "shards": 62,
+        "tensors": 75922,
+        "header_bytes": 10364400,
+        "payload_bytes": 194716970360,
+        "payload_hashing": false
+      }
+    },
+    {
+      "id": "model.shard_sequence",
+      "status": "pass",
+      "summary": "all filename-declared shards are present",
+      "details": {
+        "declared_shards": 62,
+        "found_shards": 62
+      }
+    },
+    {
+      "id": "model.required",
+      "status": "pass",
+      "summary": "required core tensors are present",
+      "details": {
+        "required_roles": [
+          "token embedding",
+          "final norm",
+          "output head"
+        ],
+        "missing_roles": []
+      }
+    },
+    {
+      "id": "model.index",
+      "status": "skip",
+      "summary": "model index is not present"
+    },
+    {
+      "id": "storage.mirror",
+      "status": "skip",
+      "summary": "no mirror directory is configured"
+    }
+  ],
+  "plan": {
+    "version": 2,
+    "policy": {
+      "name": "quality",
+      "preserve_quantization": true,
+      "preserve_router": true,
+      "quality_preserving": true
+    },
+    "model": {
+      "path": "/home/sascha/models/colibri_store/glm53_i4",
+      "shards": 62,
+      "model_bytes": 194727335256,
+      "dense_bytes": 5459580105,
+      "dense_disk_bytes": 19411840376,
+      "expert_fixed_bytes": 0,
+      "expert_bytes": 175305129984,
+      "expert_count": 12384,
+      "expert_layers": 43,
+      "typical_expert_bytes": 14155776,
+      "max_expert_bytes": 14155776,
+      "expert_bytes_by_layer": {
+        "45": 14155776,
+        "10": 14155776,
+        "11": 14155776,
+        "12": 14155776,
+        "13": 14155776,
+        "14": 14155776,
+        "15": 14155776,
+        "16": 14155776,
+        "17": 14155776,
+        "18": 14155776,
+        "19": 14155776,
+        "20": 14155776,
+        "21": 14155776,
+        "22": 14155776,
+        "23": 14155776,
+        "24": 14155776,
+        "25": 14155776,
+        "26": 14155776,
+        "27": 14155776,
+        "28": 14155776,
+        "29": 14155776,
+        "3": 14155776,
+        "30": 14155776,
+        "31": 14155776,
+        "32": 14155776,
+        "33": 14155776,
+        "34": 14155776,
+        "35": 14155776,
+        "36": 14155776,
+        "37": 14155776,
+        "38": 14155776,
+        "39": 14155776,
+        "4": 14155776,
+        "40": 14155776,
+        "41": 14155776,
+        "42": 14155776,
+        "43": 14155776,
+        "44": 14155776,
+        "5": 14155776,
+        "6": 14155776,
+        "7": 14155776,
+        "8": 14155776,
+        "9": 14155776
+      },
+      "per_cap_bytes": 608698368,
+      "family_id": "glm53",
+      "model_type": "glm5_next",
+      "configured_experts": 288
+    },
+    "cpu": {
+      "physical_cores": 16,
+      "sockets": 1,
+      "thread_policy": "physical-cores"
+    },
+    "memory": {
+      "unified": false,
+      "available_bytes": 32309448704
+    },
+    "tiers": {
+      "disk": {
+        "role": "cold-backing",
+        "model_bytes": 194727335256,
+        "available_bytes": 237943115776,
+        "cold_expert_bytes": 157430671326
+      },
+      "ram": {
+        "role": "resident+warm-experts",
+        "available_bytes": 32309448704,
+        "budget_bytes": 28432314859,
+        "dense_bytes": 5459580105,
+        "runtime_bytes": 5098276096,
+        "expert_fixed_bytes": 0,
+        "sequence_state_bytes": 276824064,
+        "fixed_state_bytes": 155975680,
+        "workspace_bytes": 59506688,
+        "expert_cache_bytes": 17874458658,
+        "warm_expert_bytes": 17874458658,
+        "cache_slots_per_layer": 29
+      },
+      "vram": {
+        "role": "hot-experts",
+        "devices": [],
+        "budget_bytes": 0,
+        "hot_expert_bytes": 0,
+        "expert_capacity": 0,
+        "requires_host_backing": false
+      }
+    },
+    "expected_bottleneck": "disk expert misses",
+    "bottleneck_class": "disk",
+    "projected_hit_rate": 0.102,
+    "tune": {
+      "DRAFT": {
+        "value": "0",
+        "reason": "low hit rate: MTP widens expert union, adds disk reads"
+      },
+      "PIPE": {
+        "value": "1",
+        "reason": "overlap disk reads with resident expert compute"
+      }
+    },
+    "next_actions": [
+      {
+        "id": "measure-storage",
+        "priority": "required",
+        "reason": "cold experts remain on disk and no trusted storage probe is available",
+        "command": "make -C c iobench && ./c/iobench"
+      },
+      {
+        "id": "measure-residency",
+        "priority": "recommended",
+        "reason": "projected expert residency is 10%",
+        "command": "coli tune --model <model>"
+      }
+    ],
+    "decisions": [
+      {
+        "target": "VRAM",
+        "reason": "profile-ranked hot experts"
+      },
+      {
+        "target": "RAM",
+        "reason": "warm experts execute on CPU without quality loss"
+      },
+      {
+        "target": "Disk",
+        "reason": "immutable recovery source for cold experts"
+      }
+    ],
+    "warnings": [
+      "cold expert misses may reach disk; normal decode speed depends on hit rate"
+    ],
+    "ssd_probe_gbs": null,
+    "ssd_probe_state": "absent"
+  }
+}
+[2026-09-13 12:42:34] === Phase B3: coli plan ===
+{
+  "version": 2,
+  "policy": {
+    "name": "quality",
+    "preserve_quantization": true,
+    "preserve_router": true,
+    "quality_preserving": true
+  },
+  "model": {
+    "path": "/home/sascha/models/colibri_store/glm53_i4",
+    "shards": 62,
+    "model_bytes": 194727335256,
+    "dense_bytes": 5459580105,
+    "dense_disk_bytes": 19411840376,
+    "expert_fixed_bytes": 0,
+    "expert_bytes": 175305129984,
+    "expert_count": 12384,
+    "expert_layers": 43,
+    "typical_expert_bytes": 14155776,
+    "max_expert_bytes": 14155776,
+    "expert_bytes_by_layer": {
+      "45": 14155776,
+      "10": 14155776,
+      "11": 14155776,
+      "12": 14155776,
+      "13": 14155776,
+      "14": 14155776,
+      "15": 14155776,
+      "16": 14155776,
+      "17": 14155776,
+      "18": 14155776,
+      "19": 14155776,
+      "20": 14155776,
+      "21": 14155776,
+      "22": 14155776,
+      "23": 14155776,
+      "24": 14155776,
+      "25": 14155776,
+      "26": 14155776,
+      "27": 14155776,
+      "28": 14155776,
+      "29": 14155776,
+      "3": 14155776,
+      "30": 14155776,
+      "31": 14155776,
+      "32": 14155776,
+      "33": 14155776,
+      "34": 14155776,
+      "35": 14155776,
+      "36": 14155776,
+      "37": 14155776,
+      "38": 14155776,
+      "39": 14155776,
+      "4": 14155776,
+      "40": 14155776,
+      "41": 14155776,
+      "42": 14155776,
+      "43": 14155776,
+      "44": 14155776,
+      "5": 14155776,
+      "6": 14155776,
+      "7": 14155776,
+      "8": 14155776,
+      "9": 14155776
+    },
+    "per_cap_bytes": 608698368,
+    "family_id": "glm53",
+    "model_type": "glm5_next",
+    "configured_experts": 288
+  },
+  "cpu": {
+    "physical_cores": 16,
+    "sockets": 1,
+    "thread_policy": "physical-cores"
+  },
+  "memory": {
+    "unified": false,
+    "available_bytes": 32310054912
+  },
+  "tiers": {
+    "disk": {
+      "role": "cold-backing",
+      "model_bytes": 194727335256,
+      "available_bytes": 237943107584,
+      "cold_expert_bytes": 157430137863
+    },
+    "ram": {
+      "role": "resident+warm-experts",
+      "available_bytes": 32310054912,
+      "budget_bytes": 28432848322,
+      "dense_bytes": 5459580105,
+      "runtime_bytes": 5098276096,
+      "expert_fixed_bytes": 0,
+      "sequence_state_bytes": 276824064,
+      "fixed_state_bytes": 155975680,
+      "workspace_bytes": 59506688,
+      "expert_cache_bytes": 17874992121,
+      "warm_expert_bytes": 17874992121,
+      "cache_slots_per_layer": 29
+    },
+    "vram": {
+      "role": "hot-experts",
+      "devices": [],
+      "budget_bytes": 0,
+      "hot_expert_bytes": 0,
+      "expert_capacity": 0,
+      "requires_host_backing": false
+    }
+  },
+  "expected_bottleneck": "disk expert misses",
+  "bottleneck_class": "disk",
+  "projected_hit_rate": 0.102,
+  "tune": {
+    "DRAFT": {
+      "value": "0",
+      "reason": "low hit rate: MTP widens expert union, adds disk reads"
+    },
+    "PIPE": {
+      "value": "1",
+      "reason": "overlap disk reads with resident expert compute"
+    }
+  },
+  "next_actions": [
+    {
+      "id": "measure-storage",
+      "priority": "required",
+      "reason": "cold experts remain on disk and no trusted storage probe is available",
+      "command": "make -C c iobench && ./c/iobench"
+    },
+    {
+      "id": "measure-residency",
+      "priority": "recommended",
+      "reason": "projected expert residency is 10%",
+      "command": "coli tune --model <model>"
+    }
+  ],
+  "decisions": [
+    {
+      "target": "VRAM",
+      "reason": "profile-ranked hot experts"
+    },
+    {
+      "target": "RAM",
+      "reason": "warm experts execute on CPU without quality loss"
+    },
+    {
+      "target": "Disk",
+      "reason": "immutable recovery source for cold experts"
+    }
+  ],
+  "warnings": [
+    "cold expert misses may reach disk; normal decode speed depends on hit rate"
+  ],
+  "ssd_probe_gbs": null,
+  "ssd_probe_state": "absent"
+}
+[2026-09-13 12:42:34] === Phase C1: Baseline-Run (Vulkan, gfx1151) ===
+teacher_forcing 154822 46398 10633 35148 220 328 138048 11 5468 4368 7823 5999 5793 137690 730 46664 610 2528 273 5999 382 6569
+ Kein Vorwort, keine Einleitung
+decode 8 token in 5.8s = 1.371 tok/s (0.7 s/token)
+experts hits 1507 miss 4322 bytes 61181263872
+
+    (\      colibri v1.10.2
+     )·>     tiny engine, immense model
+    / \      GLM-5.3-Flash · 321B · 195 GB on disk
+             run
+
+  ──────────────────────────────────────────────────────────
+[2026-09-13 12:43:20] Vulkan-Run RC=0 · Dauer: 45.6s
+[2026-09-13 12:43:20] === Phase C3: coli bench ===
+hellaswag: FAILED after 5 tries (ModuleNotFoundError: No module named 'datasets') — skipping
+arc_challenge: FAILED after 5 tries (ModuleNotFoundError: No module named 'datasets') — skipping
+mmlu: FAILED after 5 tries (ModuleNotFoundError: No module named 'datasets') — skipping
+incomplete: hellaswag, arc_challenge, mmlu — rerun when the hub recovers (cached progress is kept)
+
+    (\      colibri v1.10.2
+     )·>     tiny engine, immense model
+    / \      GLM-5.3-Flash · 321B · 195 GB on disk
+             bench
+
+  ──────────────────────────────────────────────────────────
+  downloading missing datasets: hellaswag, arc_challenge, mmlu
+  skipping (download failed, rerun later): hellaswag, arc_challenge, mmlu
+  no datasets available — nothing to bench
+[2026-09-13 12:43:20] ===== Phase B+C v2 Ende =====
+[2026-09-13 12:47:33] ===== HaloStream Phase B+C v2: erster Start =====
+[2026-09-13 12:47:33] Modell: konvertierter Colibri-Container /home/sascha/models/colibri_store/glm53_i4
+[2026-09-13 12:47:33] Sanity: 62/62 Shards, 181 GB
+[2026-09-13 12:47:33] RAM verfügbar: 112 GiB
+[2026-09-13 12:47:33] === Phase B2: coli doctor ===
+{
+  "schema_version": 1,
+  "status": "warning",
+  "model": "/home/sascha/models/colibri_store/glm53_i4",
+  "mode": "deep",
+  "checks": [
+    {
+      "id": "model.path",
+      "status": "pass",
+      "summary": "model directory is readable",
+      "details": {
+        "path": "/home/sascha/models/colibri_store/glm53_i4"
+      }
+    },
+    {
+      "id": "model.config",
+      "status": "pass",
+      "summary": "config.json is valid"
+    },
+    {
+      "id": "model.family",
+      "status": "pass",
+      "summary": "GLM-5.3-Flash family is registered",
+      "details": {
+        "family_id": "glm53",
+        "model_type": "glm5_next",
+        "descriptor": {
+          "id": "glm53",
+          "model_types": [
+            "glm5_next",
+            "glm5_next_text"
+          ],
+          "display_name": "GLM-5.3-Flash",
+          "display_scale": "321B",
+          "engine_artifact": "glm53",
+          "engine_aliases": [],
+          "engine_group": "glm53",
+          "internal_arch": "glm53",
+          "build_target": "glm53",
+          "process_names": [
+            "glm53"
+          ],
+          "default_model_id": "glm-5.3-flash-colibri",
+          "cli_adapter": "glm53",
+          "gateway_adapter": "glm53",
+          "planner_id": "glm53_hybrid",
+          "supports_accelerator": true,
+          "limits": {
+            "default_context": 8192,
+            "max_context": 1048576,
+            "default_max_output": 1024,
+            "interactive_max_output": 16384,
+            "max_kv_slots": 16,
+            "implicit_cap": 0,
+            "context_env": "GLM53_MAXT"
+          },
+          "capabilities": {
+            "tools": true,
+            "grammar_payload": false,
+            "audio_payload": false,
+            "thinking": true
+          }
+        }
+      }
+    },
+    {
+      "id": "model.tokenizer",
+      "status": "pass",
+      "summary": "tokenizer.json found"
+    },
+    {
+      "id": "storage.persistence",
+      "status": "pass",
+      "summary": "model directory can store usage and KV state"
+    },
+    {
+      "id": "engine.binary",
+      "status": "pass",
+      "summary": "engine executable is ready",
+      "details": {
+        "path": "/home/sascha/colibri/c/glm53"
+      }
+    },
+    {
+      "id": "accelerator.gpu",
+      "status": "skip",
+      "summary": "no supported GPU detected; CPU path is available"
+    },
+    {
+      "id": "model.shards",
+      "status": "pass",
+      "summary": "safetensors headers are valid",
+      "details": {
+        "shards": 62,
+        "model_bytes": 194727335256
+      }
+    },
+    {
+      "id": "storage.disk",
+      "status": "pass",
+      "summary": "model backing store is available",
+      "details": {
+        "available_bytes": 237940490240,
+        "model_bytes": 194727335256
+      }
+    },
+    {
+      "id": "memory.ram",
+      "status": "pass",
+      "summary": "RAM budget is viable",
+      "details": {
+        "available_bytes": 120763949056,
+        "budget_bytes": 106272275169,
+        "cache_slots_per_layer": 157
+      }
+    },
+    {
+      "id": "placement.plan",
+      "status": "warn",
+      "summary": "cold expert misses may reach disk; normal decode speed depends on hit rate"
+    },
+    {
+      "id": "storage.ssd_probe",
+      "status": "skip",
+      "summary": "no cached probe yet; measured on the first Metal+darwin engine start"
+    },
+    {
+      "id": "model.container",
+      "status": "pass",
+      "summary": "all tensor headers and layouts are internally consistent",
+      "details": {
+        "shards": 62,
+        "tensors": 75922,
+        "header_bytes": 10364400,
+        "payload_bytes": 194716970360,
+        "payload_hashing": false
+      }
+    },
+    {
+      "id": "model.shard_sequence",
+      "status": "pass",
+      "summary": "all filename-declared shards are present",
+      "details": {
+        "declared_shards": 62,
+        "found_shards": 62
+      }
+    },
+    {
+      "id": "model.required",
+      "status": "pass",
+      "summary": "required core tensors are present",
+      "details": {
+        "required_roles": [
+          "token embedding",
+          "final norm",
+          "output head"
+        ],
+        "missing_roles": []
+      }
+    },
+    {
+      "id": "model.index",
+      "status": "skip",
+      "summary": "model index is not present"
+    },
+    {
+      "id": "storage.mirror",
+      "status": "skip",
+      "summary": "no mirror directory is configured"
+    }
+  ],
+  "plan": {
+    "version": 2,
+    "policy": {
+      "name": "quality",
+      "preserve_quantization": true,
+      "preserve_router": true,
+      "quality_preserving": true
+    },
+    "model": {
+      "path": "/home/sascha/models/colibri_store/glm53_i4",
+      "shards": 62,
+      "model_bytes": 194727335256,
+      "dense_bytes": 5459580105,
+      "dense_disk_bytes": 19411840376,
+      "expert_fixed_bytes": 0,
+      "expert_bytes": 175305129984,
+      "expert_count": 12384,
+      "expert_layers": 43,
+      "typical_expert_bytes": 14155776,
+      "max_expert_bytes": 14155776,
+      "expert_bytes_by_layer": {
+        "45": 14155776,
+        "10": 14155776,
+        "11": 14155776,
+        "12": 14155776,
+        "13": 14155776,
+        "14": 14155776,
+        "15": 14155776,
+        "16": 14155776,
+        "17": 14155776,
+        "18": 14155776,
+        "19": 14155776,
+        "20": 14155776,
+        "21": 14155776,
+        "22": 14155776,
+        "23": 14155776,
+        "24": 14155776,
+        "25": 14155776,
+        "26": 14155776,
+        "27": 14155776,
+        "28": 14155776,
+        "29": 14155776,
+        "3": 14155776,
+        "30": 14155776,
+        "31": 14155776,
+        "32": 14155776,
+        "33": 14155776,
+        "34": 14155776,
+        "35": 14155776,
+        "36": 14155776,
+        "37": 14155776,
+        "38": 14155776,
+        "39": 14155776,
+        "4": 14155776,
+        "40": 14155776,
+        "41": 14155776,
+        "42": 14155776,
+        "43": 14155776,
+        "44": 14155776,
+        "5": 14155776,
+        "6": 14155776,
+        "7": 14155776,
+        "8": 14155776,
+        "9": 14155776
+      },
+      "per_cap_bytes": 608698368,
+      "family_id": "glm53",
+      "model_type": "glm5_next",
+      "configured_experts": 288
+    },
+    "cpu": {
+      "physical_cores": 16,
+      "sockets": 1,
+      "thread_policy": "physical-cores"
+    },
+    "memory": {
+      "unified": false,
+      "available_bytes": 120763949056
+    },
+    "tiers": {
+      "disk": {
+        "role": "cold-backing",
+        "model_bytes": 194727335256,
+        "available_bytes": 237940490240,
+        "cold_expert_bytes": 79590711016
+      },
+      "ram": {
+        "role": "resident+warm-experts",
+        "available_bytes": 120763949056,
+        "budget_bytes": 106272275169,
+        "dense_bytes": 5459580105,
+        "runtime_bytes": 5098276096,
+        "expert_fixed_bytes": 0,
+        "sequence_state_bytes": 276824064,
+        "fixed_state_bytes": 155975680,
+        "workspace_bytes": 59506688,
+        "expert_cache_bytes": 95714418968,
+        "warm_expert_bytes": 95714418968,
+        "cache_slots_per_layer": 157
+      },
+      "vram": {
+        "role": "hot-experts",
+        "devices": [],
+        "budget_bytes": 0,
+        "hot_expert_bytes": 0,
+        "expert_capacity": 0,
+        "requires_host_backing": false
+      }
+    },
+    "expected_bottleneck": "disk expert misses",
+    "bottleneck_class": "disk",
+    "projected_hit_rate": 0.546,
+    "tune": {
+      "DRAFT": {
+        "value": "0",
+        "reason": "low hit rate: MTP widens expert union, adds disk reads"
+      },
+      "PIPE": {
+        "value": "1",
+        "reason": "overlap disk reads with resident expert compute"
+      }
+    },
+    "next_actions": [
+      {
+        "id": "measure-storage",
+        "priority": "required",
+        "reason": "cold experts remain on disk and no trusted storage probe is available",
+        "command": "make -C c iobench && ./c/iobench"
+      },
+      {
+        "id": "measure-residency",
+        "priority": "recommended",
+        "reason": "projected expert residency is 55%",
+        "command": "coli tune --model <model>"
+      }
+    ],
+    "decisions": [
+      {
+        "target": "VRAM",
+        "reason": "profile-ranked hot experts"
+      },
+      {
+        "target": "RAM",
+        "reason": "warm experts execute on CPU without quality loss"
+      },
+      {
+        "target": "Disk",
+        "reason": "immutable recovery source for cold experts"
+      }
+    ],
+    "warnings": [
+      "cold expert misses may reach disk; normal decode speed depends on hit rate"
+    ],
+    "ssd_probe_gbs": null,
+    "ssd_probe_state": "absent"
+  }
+}
+[2026-09-13 12:47:33] === Phase B3: coli plan ===
+{
+  "version": 2,
+  "policy": {
+    "name": "quality",
+    "preserve_quantization": true,
+    "preserve_router": true,
+    "quality_preserving": true
+  },
+  "model": {
+    "path": "/home/sascha/models/colibri_store/glm53_i4",
+    "shards": 62,
+    "model_bytes": 194727335256,
+    "dense_bytes": 5459580105,
+    "dense_disk_bytes": 19411840376,
+    "expert_fixed_bytes": 0,
+    "expert_bytes": 175305129984,
+    "expert_count": 12384,
+    "expert_layers": 43,
+    "typical_expert_bytes": 14155776,
+    "max_expert_bytes": 14155776,
+    "expert_bytes_by_layer": {
+      "45": 14155776,
+      "10": 14155776,
+      "11": 14155776,
+      "12": 14155776,
+      "13": 14155776,
+      "14": 14155776,
+      "15": 14155776,
+      "16": 14155776,
+      "17": 14155776,
+      "18": 14155776,
+      "19": 14155776,
+      "20": 14155776,
+      "21": 14155776,
+      "22": 14155776,
+      "23": 14155776,
+      "24": 14155776,
+      "25": 14155776,
+      "26": 14155776,
+      "27": 14155776,
+      "28": 14155776,
+      "29": 14155776,
+      "3": 14155776,
+      "30": 14155776,
+      "31": 14155776,
+      "32": 14155776,
+      "33": 14155776,
+      "34": 14155776,
+      "35": 14155776,
+      "36": 14155776,
+      "37": 14155776,
+      "38": 14155776,
+      "39": 14155776,
+      "4": 14155776,
+      "40": 14155776,
+      "41": 14155776,
+      "42": 14155776,
+      "43": 14155776,
+      "44": 14155776,
+      "5": 14155776,
+      "6": 14155776,
+      "7": 14155776,
+      "8": 14155776,
+      "9": 14155776
+    },
+    "per_cap_bytes": 608698368,
+    "family_id": "glm53",
+    "model_type": "glm5_next",
+    "configured_experts": 288
+  },
+  "cpu": {
+    "physical_cores": 16,
+    "sockets": 1,
+    "thread_policy": "physical-cores"
+  },
+  "memory": {
+    "unified": false,
+    "available_bytes": 120757145600
+  },
+  "tiers": {
+    "disk": {
+      "role": "cold-backing",
+      "model_bytes": 194727335256,
+      "available_bytes": 237940482048,
+      "cold_expert_bytes": 79596698057
+    },
+    "ram": {
+      "role": "resident+warm-experts",
+      "available_bytes": 120757145600,
+      "budget_bytes": 106266288128,
+      "dense_bytes": 5459580105,
+      "runtime_bytes": 5098276096,
+      "expert_fixed_bytes": 0,
+      "sequence_state_bytes": 276824064,
+      "fixed_state_bytes": 155975680,
+      "workspace_bytes": 59506688,
+      "expert_cache_bytes": 95708431927,
+      "warm_expert_bytes": 95708431927,
+      "cache_slots_per_layer": 157
+    },
+    "vram": {
+      "role": "hot-experts",
+      "devices": [],
+      "budget_bytes": 0,
+      "hot_expert_bytes": 0,
+      "expert_capacity": 0,
+      "requires_host_backing": false
+    }
+  },
+  "expected_bottleneck": "disk expert misses",
+  "bottleneck_class": "disk",
+  "projected_hit_rate": 0.546,
+  "tune": {
+    "DRAFT": {
+      "value": "0",
+      "reason": "low hit rate: MTP widens expert union, adds disk reads"
+    },
+    "PIPE": {
+      "value": "1",
+      "reason": "overlap disk reads with resident expert compute"
+    }
+  },
+  "next_actions": [
+    {
+      "id": "measure-storage",
+      "priority": "required",
+      "reason": "cold experts remain on disk and no trusted storage probe is available",
+      "command": "make -C c iobench && ./c/iobench"
+    },
+    {
+      "id": "measure-residency",
+      "priority": "recommended",
+      "reason": "projected expert residency is 55%",
+      "command": "coli tune --model <model>"
+    }
+  ],
+  "decisions": [
+    {
+      "target": "VRAM",
+      "reason": "profile-ranked hot experts"
+    },
+    {
+      "target": "RAM",
+      "reason": "warm experts execute on CPU without quality loss"
+    },
+    {
+      "target": "Disk",
+      "reason": "immutable recovery source for cold experts"
+    }
+  ],
+  "warnings": [
+    "cold expert misses may reach disk; normal decode speed depends on hit rate"
+  ],
+  "ssd_probe_gbs": null,
+  "ssd_probe_state": "absent"
+}
+[2026-09-13 12:47:33] === Phase C1: Baseline-Run (Vulkan, gfx1151) ===
+[VK] VRAM pressure-proofing: memory_priority on, memory_budget on
+[VK] ready: Radeon 8060S Graphics (RADV GFX1151), compute qfam 0, memtype 3, fused gate+up, absorb attention
+Vulkan: attivo sulle matrici residenti
+teacher_forcing 154822 46398 10633 35148 220 328 138048 11 5468 4368 7823 5999 5793 137690 730 46664 610 2528 273 5999 382 6569
+ Kein Vorwort,

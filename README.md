@@ -43,15 +43,16 @@
   („GLM-5.3-Flash inference engine in pure C"); Streaming-Design ist für
   genau diese Größe gebaut (Upstream-Kommentar: „391 GB container, 25 GB RAM")
 
-## Status (2026-09-12)
+## Status (2026-09-13)
 
 - [x] Phase 0: Colibri-Build (venv `~/.venvs/colibri`), Model-Store, 10,1 GB/s NVMe-I/O
 - [x] Umbenennung colibri-rocm → **HaloStream** (GitHub + lokal)
 - [x] Vulkan-Spike A: **BUILD SUCCESS** (Runtime-GPU-Test braucht das Modell)
-- [~] Download GLM-5.3-Flash läuft (systemd `colibri-glm53-dl`, ~24 MB/s)
+- [x] GLM-5.3-Flash in Colibri-Container konvertiert (62 Shards, ca. 195 GB)
 - [~] Halogen-Checkpoint (~130 GB): Auto-Kette startet nach GLM-Finish
       (`halogen-ckpt-chain` → `/home/sascha/models/halogen_store`)
-- [ ] Erster Load + Chat mit `coli` (Runbook in PLAN.md)
+- [x] Erster Load + Chat mit `coli` auf CPU/SSD-Streaming
+- [ ] Vulkan-Laufzeitpfad auf gfx1151 verifizieren
 - [ ] Halogen-Deployment per Docker + Benchmark vs LM Studio
 
 ## Struktur

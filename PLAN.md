@@ -12,12 +12,12 @@ Halogen dient als Serving-Referenz für Qwen3.8-Flash-Next auf demselben Silicon
       ROCm 7.2 unter `~/local/rocm-extract` (gfx1151-fähig)
 - Details: `docs/audit-2026-09-11.md`
 
-## Phase 1 – Feasibility (Stand 2026-09-12)
+## Phase 1 – Feasibility (Stand 2026-09-13)
 
 ### Spike A: Vulkan-Backend
 - [x] BUILD SUCCESS gegen RADV (Mesa 25.2.8, gfx1151) — `docs/spike-a-vulkan-build.md`
-- [ ] Runtime-GPU-Test: blockiert, bis GLM-5.3-Flash vollständig geladen werden kann
-      (Colibri lädt nur volle Modelle — kein Tiny-Fixture-Test möglich)
+- [ ] Runtime-GPU-Test: Engine startet aktuell ohne erkannte GPU; CPU/SSD-Pfad ist
+   validiert, Vulkan bleibt ein separater Build- und Device-Check.
 
 ### Referenz: Halogen (peonist-ai, Inspektion 2026-09-12)
 - Geschlossener ROCm-Binary-Server für Qwen3.8-Flash-Next auf Strix Halo
@@ -26,12 +26,12 @@ Halogen dient als Serving-Referenz für Qwen3.8-Flash-Next auf demselben Silicon
   Quality-Sidecar-Prinzip, KV-Pool-Sharing, MTP-Drafting
 - Details: `spike/halogen_comparison.log`
 
-## Phase 2 – Go/No-Go (nach erstem Load, heute abend)
+## Phase 2 – Go/No-Go (Stand 2026-09-13)
 | Kriterium | Schwelle |
 |---|---|
-| CPU-Streaming-Loop funktioniert? | Chat antwortet korrekt |
-| Token-Rate interaktiv? | ≥ 3 tok/s |
-| GPU-Pfad schneller als CPU? | ≥ 1,5× (nach Vulkan-Runtime-Test) |
+| CPU-Streaming-Loop funktioniert? | **Ja**: echte Antwort erzeugt |
+| Token-Rate interaktiv? | **Noch nein**: 1,371 tok/s im 8-Token-Smoke-Test |
+| GPU-Pfad schneller als CPU? | **Offen**: keine GPU im Colibri-Plan erkannt |
 
 Nein → CPU-only belassen, Projekt „beobachten". Ja → Phase 3.
 
@@ -45,15 +45,17 @@ Nein → CPU-only belassen, Projekt „beobachten". Ja → Phase 3.
 ### Runbook „Erster Start GLM-5.3-Flash" (heute abend)
 1. **Download abwarten:** `systemctl --user is-active colibri-glm53-dl` → inactive.
    Sanity: `du -sh /home/sascha/models/colibri_store/glm53_flash` ≈ 328 GB, 62 Shards.
-2. **Remap:** `python3 /home/sascha/halostream/spike/remap_glm53.py`
-   — Zero-Copy: patched nur `model.safetensors.index.json`
-   (`model.language_model.*` → `model.*`), Backup `.pre_remap`,
-   verifiziert kritische Tensoren (Layer 0/44, lm_head, embed_tokens).
+2. **Konvertierten Container verwenden:**
+   `/home/sascha/models/colibri_store/glm53_i4` ist der gültige Colibri-Container
+   (62 Shards, ca. 195 GB). Der Rohpfad `glm53_flash` wird nicht direkt geladen;
+   falls der Container fehlt, zuerst `convert_glm53.py` ausführen.
 3. **Erster Load-Test** (konservativ starten, LM Studio ggf. Models entladen):
-   `~/.venvs/colibri/bin/coli --model /home/sascha/models/colibri_store/glm53_flash chat`
+   `~/.venvs/colibri/bin/coli chat --model /home/sascha/models/colibri_store/glm53_i4`
    Bei Problemen: `coli doctor`, `--ram` reduzieren, `--ctx` klein halten.
-   Engine-Support ist nativ (`c/glm53.c`) — Debug-Fokus: Loader-Keys & RAM-Budget.
-4. **Messen:** tok/s in `docs/benchmarks.md` (Datum, Kommando, Ergebnis).
+   Engine-Support ist nativ (`c/glm53.c`) — Vulkan wird optional über
+   `COLI_VULKAN=1` aktiviert und fällt bei fehlendem Device auf CPU zurück.
+4. **Messen:** Smoke-Test vom 2026-09-13 ist in `docs/benchmarks.md` dokumentiert;
+   längere Messungen erst nach der Vulkan-Device-Erkennung durchführen.
 5. **Serve-Modus:** `coli --model … serve` — OpenAI-kompatibel; danach
    Optional: als Standard-Provider bei OpenClaw eintragen.
 

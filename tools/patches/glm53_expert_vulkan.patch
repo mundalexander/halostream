@@ -1,0 +1,68 @@
+diff --git a/c/glm53.c b/c/glm53.c
+index 13dc21c..3dd86d7 100644
+--- a/c/glm53.c
++++ b/c/glm53.c
+@@ -1147,9 +1147,27 @@ typedef struct ERef {
+ 
+ /* I sei pezzi non sono adiacenti nel file, ma non devono esserlo nemmeno in
+  * memoria: expert_mats ci costruisce sopra solo tre viste in sola lettura. */
+-typedef struct { int eid; uint8_t *piece[GLM53_EXPERT_PIECES]; uint8_t *own; uint64_t used; } Slot;
++typedef struct { int eid; uint8_t *piece[GLM53_EXPERT_PIECES]; uint8_t *own; uint64_t used;
++                 void *vk[3];   /* ColiVkTensor* gate/up/down, resident sul device */
++                 size_t vk_bytes; } Slot;
+ typedef struct LCache { Slot *s; int n, cap; } LCache;
+ 
++/* Rilascia i tensori GPU di uno slot prima che venga riusato (eviction LRU).
++ * Chiamata SOLO nei punti seriali di eviction, mai dentro expert_read
++ * (che gira nel loop parallelo delle letture). */
++static void slot_vk_clear(Slot *slot) {
++#ifdef COLI_VULKAN
++    for (int i = 0; i < 3; i++)
++        if (slot->vk[i]) {
++            coli_vk_tensor_free(slot->vk[i]);
++            slot->vk[i] = NULL;
++        }
++    slot->vk_bytes = 0;
++#else
++    (void)slot;
++#endif
++}
++
+ /* Lunghezze e posizioni dei sei pezzi dentro allo slot. Gate e up sono
+  * [moe_inter, hidden], down e' [hidden, moe_inter]: stessi byte, forme
+  * scambiate. */
+@@ -1340,11 +1358,11 @@ static void expert_mats(const GModel *m, const Slot *slot, Mat *gate, Mat *up, M
+     const int hidden = m->c.hidden, inter = m->c.moe_inter;
+     const Mat shape[3] = {
+         { 4, NULL, NULL, slot->piece[0], (const float *)slot->piece[1],
+-          inter, hidden, 64 },
++          inter, hidden, 64, slot->vk[0] },
+         { 4, NULL, NULL, slot->piece[2], (const float *)slot->piece[3],
+-          inter, hidden, 64 },
++          inter, hidden, 64, slot->vk[1] },
+         { 4, NULL, NULL, slot->piece[4], (const float *)slot->piece[5],
+-          hidden, inter, 64 },
++          hidden, inter, 64, slot->vk[2] },
+     };
+     *gate = shape[0]; *up = shape[1]; *down = shape[2];
+ }
+@@ -1478,6 +1496,7 @@ static void ffn_layer(GModel *m, const GLayer *l, int index, const float *x,
+             }
+             /* prenotato subito: cosi' la scelta successiva non lo ripesca */
+             victim->used = ++m->clock;
++            slot_vk_clear(victim);   /* tensori GPU del vecchio occupante: via */
+             victim->eid = -1;
+             slot_of[i] = (int)(victim - cache->s);
+             to_read[reads++] = i;
+@@ -1513,6 +1532,11 @@ static void ffn_layer(GModel *m, const GLayer *l, int index, const float *x,
+                 float *dst = out + (size_t)t * c->hidden;
+                 for (int d = 0; d < c->hidden; d++) dst[d] += scale * tmp[d];
+             }
++            /* Torna i tensori GPU nello slot: il primo mlp3 ha caricato la
++             * copia residente (COLI_VULKAN), i prossimi token dello stesso
++             * esperto la riusano senza ricaricare. Idempotente: i puntatori
++             * coincidono gia' quando era tutto sul device. */
++            slot->vk[0] = gate.vk; slot->vk[1] = up.vk; slot->vk[2] = down.vk;
+         }
+     }
+     free(to_read); free(slot_of); free(union_ids);

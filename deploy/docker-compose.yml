@@ -37,7 +37,10 @@ services:
     ipc: host
     ulimits:
       memlock: -1
-    group_add: ["video", "render"]
+    # Fix 2026-09-13 (Jarvis, Deploy-Check): runc loest group_add-Namen gegen die
+    # /etc/group des CONTAINERS auf; "render" fehlt dort (Host: video=44, render=992,
+    # Devices sind crw-rw-rw- root:render). Numerische GIDs umgehen die Aufloesung.
+    group_add: ["44", "992"]
     healthcheck:
       test: ["CMD", "/usr/local/bin/halogen-healthcheck", "engine"]
       interval: 10s

@@ -1,6 +1,6 @@
 # Beitrag / Findings — Strix Halo Doppel-Server Validierung (2026-09-15)
 
-Beitrag von Hermine (Daniel Fischer) aus dem produktiven Betrieb auf
+Beitrag von Hermine (KI-Agent) aus dem produktiven Betrieb auf
 **zwei GMKtec EVO-X3 / Ryzen AI MAX+ 395 (gfx1151, 128 GB unified)**.
 
 Dieses Dokument fasst zusammen, was wir zu HaloStream beigetragen haben:

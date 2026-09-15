@@ -96,3 +96,44 @@ Frühere Läufe wurden vom Kernel beendet: `glm53` erreichte ca. 49--52 GiB RSS,
 danach wurde der zugehörige VS-Code-App-Scope ebenfalls beendet. Das ist kein
 Shared-Storage-Fehler. Inference-Tests müssen außerhalb von VS Code und ohne
 parallel geladene LM-Studio-Modelle laufen.
+
+## GLM-5.3-Flash Erster Vollmodell-Lauf (Server 51, /models)
+
+- Datum: 2026-09-15, Modell `/models/glm-5.3-flash-colibri-int4-g64`
+  (Download 07:16 fertig, 62 Shards bytegenau = Remote-Größe 181.4 GiB)
+- Kommando: `COLI_VULKAN=1 COLI_VK_SHADERS=.../shaders/qmatmul.spv GLM53_EXPERT_GB=16 KV_SLOTS=2048 ./glm53 --model ... --prompt '...' --greedy 40`
+- Laden: **PASS** — `caricamento 25.2s`, kein OOM beim Laden, Vulkan ready
+  (Radeon 8060S RADV GFX1151), Expert-Cache 26 Slots/Layer × 42 Layer = 15.5 GB resident
+- Prefill: 18 Token in 27.2s; Ausgabe korrekt gestartet
+  („NVMe-Streaming ist die kontinuierliche Uebertragung grosser Datenmengen ueber die NVMe…")
+- Decode: **OOM-KILL nach ~90 s** (Kernel `global_oom`, 14:17:54)
+- OOM-Forensik: Prozess-RSS nur 24 GB (anon), aber Kernel-Mem-Info zeigt
+  `gpu_active: 103635620 kB` ≈ **98.8 GB GPU-Allokationen aus System-RAM** (UMA).
+  Der RAM-Drain lief linear über ~90 s während des Decodes, nicht beim Laden.
+
+### Root Cause (Code-Analyse)
+
+1. `upload_tensor()` in `backend_vulkan.c` allokiert aus einer VK-Arena
+   (256-MB-Blöcke), die **freigegebene Blöcke nie an das OS zurückgibt**
+   (`tensor_free` zerstört nur Buffer; Arena-Block bleibt).
+2. Der VK-Expert-Tier in `glm53.c` ruft `coli_vk_tensor_ensure()` pro
+   Cache-Miss **ohne Device-Memory-Budget** auf — im Gegensatz zu `colibri.c`,
+   wo `vk_registry_fill()` bei `COLI_VK_RESERVE_GB` stoppt.
+3. Auf UMA (device-local = System-RAM) wächst die GPU-Seite also monoton mit
+   der Anzahl einzigartiger, je einmal hochgeladener Experten → globaler OOM.
+
+KV-Cache war NICHT der Treiber: DSA-Indexer-Cache ist 33 KB/Token (~2 MB bei
+diesem Lauf). `GLM53_EXPERT_GB=16` begrenzt nur die CPU-Seite (Slot-Slab),
+nicht die GPU-Arena.
+
+### Offene Korrektur (entscheidungsbedürftig)
+
+Budget-Gate im glm53.c-Expert-Tier: laufende Zählung der hochgeladenen
+GPU-Bytes, Upload-Skip (CPU-Fallback) ab Cap — analog `vk_registry_fill` in
+colibri.c. Alternativ/ergänzend: Arena-Block-Rückgabe an das OS.
+
+## Halogen-Service-Nebenbefund (15.09.)
+
+`halogen-flash.service` seit 08:10 failed (exit 143 = SIGTERM, sauberer
+Stop durch systemd, kein Crash). Service ist `disabled`. Vor dem nächsten
+Einsatz prüfen/erneut starten — laut REGEL nur mit User-Zustimmung.

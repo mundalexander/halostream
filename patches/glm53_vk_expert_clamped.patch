@@ -1,0 +1,254 @@
+diff --git a/c/backend_vulkan.c b/c/backend_vulkan.c
+index d779607..4c02418 100644
+--- a/c/backend_vulkan.c
++++ b/c/backend_vulkan.c
+@@ -105,6 +105,10 @@ static struct {
+ } G;
+ 
+ struct PC { int fmt, S, I, O, rowWords, gs; };
++/* gate_up push constants: PC + swiglu clamp (must match qmatmul_gate_up.comp). */
++struct PCGU { int fmt, S, I, O, rowWords, gs; float limit; };
++static float g_vk_swiglu_limit = 0.0f;
++void coli_vk_set_swiglu_limit(float limit) { g_vk_swiglu_limit = limit; }
+ struct PCN { int S, D; float eps; };
+ /* Push constants of the absorb attention kernel (must match attention_absorb.comp). */
+ struct PCAttn { int fmt, S, H, Q, R, V, K, st0, T, rowWords, cap; float scale; int gs; };
+@@ -400,7 +404,7 @@ int coli_vk_init(const char *spv_path) {
+      * (single-matmul path keeps working). */
+     char gu_path[512]; derive_sibling(spv_path, "_gate_up.spv", gu_path, sizeof(gu_path));
+     G.shader_gu = load_spv(G.dev, gu_path);
+-    if (G.shader_gu && !build_pipeline(G.dev, 6, sizeof(struct PC), G.shader_gu, &G.dsl_gu, &G.plyt_gu, &G.pipe_gu, &G.dpool_gu, &G.dset_gu))
++    if (G.shader_gu && !build_pipeline(G.dev, 6, sizeof(struct PCGU), G.shader_gu, &G.dsl_gu, &G.plyt_gu, &G.pipe_gu, &G.dpool_gu, &G.dset_gu))
+         return 0;
+ 
+     /* Optional MLA absorb attention pipeline (same directory as the main shader). */
+@@ -684,7 +688,7 @@ int coli_vk_gate_up(ColiVkTensor **gate, ColiVkTensor **up, float *hidden, const
+     VKCHECK(vkBeginCommandBuffer(G.cmd, &begin), "beginCmd");
+     vkCmdBindPipeline(G.cmd, VK_PIPELINE_BIND_POINT_COMPUTE, G.pipe_gu);
+     vkCmdBindDescriptorSets(G.cmd, VK_PIPELINE_BIND_POINT_COMPUTE, G.plyt_gu, 0, 1, &G.dset_gu, 0, NULL);
+-    struct PC pc = {fmt, S, D, I, tg->rowWords, tg->gs};   // PC.I = input D, PC.O = moe_inter I
++    struct PCGU pc = {fmt, S, D, I, tg->rowWords, tg->gs, g_vk_swiglu_limit};   // PC.I = input D, PC.O = moe_inter I
+     vkCmdPushConstants(G.cmd, G.plyt_gu, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pc), &pc);
+     vkCmdDispatch(G.cmd, (uint32_t)((I + 7) / 8), (uint32_t)S, 1);
+     VKCHECK(vkEndCommandBuffer(G.cmd), "endCmd");
+@@ -776,7 +780,7 @@ static int eg_prepare_submit(ColiVkTensor *const *gates, ColiVkTensor *const *up
+     /* phase 1: fused gate+up+silu -> hidden (per expert, bound to its x/hidden slices) */
+     vkCmdBindPipeline(G.eg_cmd, VK_PIPELINE_BIND_POINT_COMPUTE, G.pipe_gu);
+     for (int c = 0; c < count; c++) {
+-        struct PC pc = {fmt, rows[c], D, I, gates[c]->rowWords, gates[c]->gs};
++        struct PCGU pc = {fmt, rows[c], D, I, gates[c]->rowWords, gates[c]->gs, g_vk_swiglu_limit};
+         vkCmdBindDescriptorSets(G.eg_cmd, VK_PIPELINE_BIND_POINT_COMPUTE, G.plyt_gu, 0, 1, &G.eg_gu[c], 0, NULL);
+         vkCmdPushConstants(G.eg_cmd, G.plyt_gu, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pc), &pc);
+         vkCmdDispatch(G.eg_cmd, (uint32_t)((I + 7) / 8), (uint32_t)rows[c], 1);
+@@ -1017,7 +1021,7 @@ int coli_vk_init_dev2(const char *spv_path, int devidx) {
+     if (!G2.sh_gu) { fprintf(stderr, "[VK] dev2: gate_up shader required for the tier\n"); return 0; }
+     VkDescriptorPool dp; VkDescriptorSet ds;   /* build_pipeline's singleton set: unused here */
+     if (!build_pipeline(G2.dev, 4, sizeof(struct PC), G2.sh_qmm, &G2.dsl, &G2.plyt, &G2.pipe, &dp, &ds)) return 0;
+-    if (!build_pipeline(G2.dev, 6, sizeof(struct PC), G2.sh_gu, &G2.dsl_gu, &G2.plyt_gu, &G2.pipe_gu, &dp, &ds)) return 0;
++    if (!build_pipeline(G2.dev, 6, sizeof(struct PCGU), G2.sh_gu, &G2.dsl_gu, &G2.plyt_gu, &G2.pipe_gu, &dp, &ds)) return 0;
+     VkCommandPoolCreateInfo cpci = {.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+         .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT, .queueFamilyIndex = G2.qfam};
+     VKCHECK(vkCreateCommandPool(G2.dev, &cpci, NULL, &G2.cpool), "d2 cmdPool");
+@@ -1118,7 +1122,7 @@ static int eg2_prepare_submit(ColiVkTensor *const *gates, ColiVkTensor *const *u
+     VkMemoryBarrier mb = {.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER, .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT, .dstAccessMask = VK_ACCESS_SHADER_READ_BIT};
+     vkCmdBindPipeline(G2.cmd, VK_PIPELINE_BIND_POINT_COMPUTE, G2.pipe_gu);
+     for (int c = 0; c < count; c++) {
+-        struct PC pc = {fmt, rows[c], D, I, gates[c]->rowWords, gates[c]->gs};
++        struct PCGU pc = {fmt, rows[c], D, I, gates[c]->rowWords, gates[c]->gs, g_vk_swiglu_limit};
+         vkCmdBindDescriptorSets(G2.cmd, VK_PIPELINE_BIND_POINT_COMPUTE, G2.plyt_gu, 0, 1, &G2.gu[c], 0, NULL);
+         vkCmdPushConstants(G2.cmd, G2.plyt_gu, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pc), &pc);
+         vkCmdDispatch(G2.cmd, (uint32_t)((I + 7) / 8), (uint32_t)rows[c], 1);
+@@ -1745,7 +1749,7 @@ static double bench_gu_batched(ColiVkTensor *tg, const float *x, int fmt, int S,
+     vkBeginCommandBuffer(G.cmd, &begin);
+     vkCmdBindPipeline(G.cmd, VK_PIPELINE_BIND_POINT_COMPUTE, G.pipe_gu);
+     vkCmdBindDescriptorSets(G.cmd, VK_PIPELINE_BIND_POINT_COMPUTE, G.plyt_gu, 0, 1, &G.dset_gu, 0, NULL);
+-    struct PC pc = {fmt, S, D, I, tg->rowWords, tg->gs};
++    struct PCGU pc = {fmt, S, D, I, tg->rowWords, tg->gs, g_vk_swiglu_limit};
+     vkCmdPushConstants(G.cmd, G.plyt_gu, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pc), &pc);
+     VkMemoryBarrier mb = {.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+         .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT, .dstAccessMask = VK_ACCESS_SHADER_READ_BIT};
+@@ -1793,7 +1797,7 @@ static double bench_experts_fair(int fmt, int D, int I, int K, int Npass) {
+     VkCommandBufferBeginInfo begin = {.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+     vkBeginCommandBuffer(G.cmd, &begin);
+     vkCmdBindPipeline(G.cmd, VK_PIPELINE_BIND_POINT_COMPUTE, G.pipe_gu);
+-    struct PC pc = {fmt, 1, D, I, tg[0]->rowWords, tg[0]->gs};
++    struct PCGU pc = {fmt, 1, D, I, tg[0]->rowWords, tg[0]->gs, g_vk_swiglu_limit};
+     vkCmdPushConstants(G.cmd, G.plyt_gu, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pc), &pc);
+     VkMemoryBarrier mb = {.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER, .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT, .dstAccessMask = VK_ACCESS_SHADER_READ_BIT};
+     for (int pass = 0; pass < Npass; pass++) for (int c = 0; c < K; c++) {
+diff --git a/c/backend_vulkan.h b/c/backend_vulkan.h
+index 30b617d..dd26723 100644
+--- a/c/backend_vulkan.h
++++ b/c/backend_vulkan.h
+@@ -67,6 +67,10 @@ int  coli_vk_expert_group_take(float *y);
+ 
+ /* Upload a resident tensor without computing (expert tier: gate/up/down uploaded once,
+  * then driven by coli_vk_expert_group). Returns 0 on failure/unsupported fmt. */
++/* Set the swiglu clamp used by the fused gate_up shader (0 = kein Clamp).
++ * Muss vor dem ersten expert_group/gate_up-Aufruf gesetzt werden. */
++void coli_vk_set_swiglu_limit(float limit);
++
+ int  coli_vk_tensor_ensure(ColiVkTensor **tensor, const void *weights, const float *scales, int fmt, int I, int O, int grp);
+ 
+ /* SECOND DEVICE (COLI_VK_DEV2): a self-contained context on another Vulkan GPU that
+diff --git a/c/glm53.c b/c/glm53.c
+index 3af0f2c..1271912 100644
+--- a/c/glm53.c
++++ b/c/glm53.c
+@@ -1209,6 +1209,7 @@ typedef struct {
+     size_t own_len;
+     int metal_registered;
+     uint64_t used;
++    void *vk[3];   /* ColiVkTensor* gate/up/down, persistent sul device (COLI_VULKAN) */
+ } Slot;
+ typedef struct LCache { Slot *s; int n, cap; } LCache;
+ 
+@@ -1433,11 +1434,11 @@ static void expert_mats(const GModel *m, const Slot *slot, Mat *gate, Mat *up, M
+     const int hidden = m->c.hidden, inter = m->c.moe_inter;
+     const Mat shape[3] = {
+         { 4, NULL, NULL, slot->piece[0], (const float *)slot->piece[1],
+-          inter, hidden, 64, NULL, 0, NULL },
++          inter, hidden, 64, slot->vk[0], 0, NULL },
+         { 4, NULL, NULL, slot->piece[2], (const float *)slot->piece[3],
+-          inter, hidden, 64, NULL, 0, NULL },
++          inter, hidden, 64, slot->vk[1], 0, NULL },
+         { 4, NULL, NULL, slot->piece[4], (const float *)slot->piece[5],
+-          hidden, inter, 64, NULL, 0, NULL },
++          hidden, inter, 64, slot->vk[2], 0, NULL },
+     };
+     *gate = shape[0]; *up = shape[1]; *down = shape[2];
+ }
+@@ -1577,6 +1578,12 @@ static void ffn_layer(GModel *m, const GLayer *l, int index, const float *x,
+             }
+             /* prenotato subito: cosi' la scelta successiva non lo ripesca */
+             victim->used = ++m->clock;
++#ifdef COLI_VULKAN
++            /* Tensoren des alten Bewohners freigeben, bevor der Slot ueberschrieben wird.
++             * Nur hier (seriell), nie im OMP-Lese-Loop. */
++            for (int vi = 0; vi < 3; vi++)
++                if (victim->vk[vi]) { coli_vk_tensor_free(victim->vk[vi]); victim->vk[vi] = NULL; }
++#endif
+             victim->eid = -1;
+             slot_of[i] = (int)(victim - cache->s);
+             to_read[reads++] = i;
+@@ -1649,6 +1656,89 @@ static void ffn_layer(GModel *m, const GLayer *l, int index, const float *x,
+             free(xg); free(rw); free(rows); free(nr); free(xoff);
+             free(mds); free(mus); free(mgs); free(md); free(mu); free(mg);
+         }
++#endif
++#ifdef COLI_VULKAN
++        /* VK expert tier: residente int4-Experten als EINEN batched expert_group.
++         * Voraussetzung: swiglu_limit == 0 (der fused gate_up-Shader clamp NICHT,
++         * glm53.c clamped auf dem CPU-Pfad — bei limit != 0 bleibt alles auf CPU,
++         * um Zahlenabweichungen zu vermeiden). */
++        if (!metal_done && g_vk_ready) {
++            ColiVkTensor *vg[64], *vu[64], *vd[64];
++            int vidx[64], vrows[64];
++            int nvk = 0;
++            for (int i = 0; i < here && nvk < 64; i++) {
++                Slot *slot = &cache->s[slot_of[i]];
++                if (!slot->piece[0] || !slot->piece[2] || !slot->piece[4]) continue;
++                if (!slot->vk[0]) {
++                    if (!coli_vk_tensor_ensure((ColiVkTensor **)&slot->vk[0], slot->piece[0],
++                            (const float *)slot->piece[1], 4, c->hidden, c->moe_inter, 64)) {
++                        slot->vk[0] = NULL; continue; }
++                }
++                if (!slot->vk[1]) {
++                    if (!coli_vk_tensor_ensure((ColiVkTensor **)&slot->vk[1], slot->piece[2],
++                            (const float *)slot->piece[3], 4, c->hidden, c->moe_inter, 64)) {
++                        coli_vk_tensor_free(slot->vk[0]); slot->vk[0] = NULL; continue; }
++                }
++                if (!slot->vk[2]) {
++                    if (!coli_vk_tensor_ensure((ColiVkTensor **)&slot->vk[2], slot->piece[4],
++                            (const float *)slot->piece[5], 4, c->moe_inter, c->hidden, 64)) {
++                        coli_vk_tensor_free(slot->vk[1]); coli_vk_tensor_free(slot->vk[2]);
++                        slot->vk[1] = slot->vk[2] = NULL;
++                        coli_vk_tensor_free(slot->vk[0]); slot->vk[0] = NULL; continue; }
++                }
++                int nr = 0;
++                for (int t = 0; t < tokens; t++)
++                    for (int k = 0; k < topk; k++)
++                        if (chosen[(size_t)t * topk + k] == union_ids[base + i]) { nr++; break; }
++                if (!nr) continue;
++                vg[nvk] = (ColiVkTensor *)slot->vk[0];
++                vu[nvk] = (ColiVkTensor *)slot->vk[1];
++                vd[nvk] = (ColiVkTensor *)slot->vk[2];
++                vidx[nvk] = i; vrows[nvk] = nr; nvk++;
++            }
++            if (nvk > 0) {
++                float *vx = malloc((size_t)tokens * topk * c->hidden * sizeof(float));
++                float *vy = malloc((size_t)tokens * topk * c->hidden * sizeof(float));
++                int vk_ok = 0;
++                if (vx && vy) {
++                    int R = 0;
++                    for (int g = 0; g < nvk; g++) {
++                        const int i = vidx[g];
++                        const int eid = union_ids[base + i];
++                        for (int t = 0; t < tokens; t++) {
++                            float scale = 0.0f;
++                            for (int k = 0; k < topk; k++)
++                                if (chosen[(size_t)t * topk + k] == eid) {
++                                    scale = weight[(size_t)t * topk + k]; break; }
++                            if (scale == 0.0f) continue;
++                            memcpy(vx + (size_t)R * c->hidden, x + (size_t)t * c->hidden,
++                                   (size_t)c->hidden * sizeof(float));
++                            R++;
++                        }
++                    }
++                    vk_ok = coli_vk_expert_group(vg, vu, vd, vrows, nvk, vy, vx);
++                    if (vk_ok) {
++                        int o = 0;
++                        for (int g = 0; g < nvk; g++) {
++                            const int i = vidx[g];
++                            const int eid = union_ids[base + i];
++                            for (int t = 0; t < tokens; t++) {
++                                float scale = 0.0f;
++                                for (int k = 0; k < topk; k++)
++                                    if (chosen[(size_t)t * topk + k] == eid) {
++                                        scale = weight[(size_t)t * topk + k]; break; }
++                                if (scale == 0.0f) continue;
++                                float *dst = out + (size_t)t * c->hidden;
++                                const float *srcv = vy + (size_t)(o++) * c->hidden;
++                                for (int d = 0; d < c->hidden; d++) dst[d] += scale * srcv[d];
++                            }
++                        }
++                    }
++                }
++                free(vx); free(vy);
++                if (vk_ok) continue;   /* dieser Block ist fertig, CPU-Fallback unten nur fuer den Rest */
++            }
++        }
+ #endif
+         if (!metal_done) {
+             /* CPU fallback: one expert at a time, then every token that chose it. */
+@@ -1854,6 +1944,7 @@ static void model_load_range(GModel *m, const char *dir, int layer_begin,
+         if (given && strstr(given, ".spv")) snprintf(spv, sizeof(spv), "%s", given);
+         else snprintf(spv, sizeof(spv), "%s/qmatmul.spv", given ? given : "shaders");
+         g_vk_ready = coli_vk_init(spv) && coli_vk_available();
++        if (g_vk_ready) coli_vk_set_swiglu_limit(m->c.swiglu_limit);
+         fprintf(stderr, g_vk_ready
+                 ? "Vulkan: attivo sulle matrici residenti\n"
+                 : "Vulkan: nessun device utilizzabile (%s), resto su CPU\n", spv);
+diff --git a/c/shaders/qmatmul_gate_up.comp b/c/shaders/qmatmul_gate_up.comp
+index 8db58d0..3a78c20 100644
+--- a/c/shaders/qmatmul_gate_up.comp
++++ b/c/shaders/qmatmul_gate_up.comp
+@@ -25,6 +25,7 @@ layout(push_constant) uniform P {
+     int S, I, O;    // I = input dim (hidden), O = moe_inter
+     int rowWords;   // uint32 words per weight row (of the I-dim rows)
+     int gs;         // fmt=4 group size (multiple of 8; host gates otherwise)
++    float limit;    // swiglu clamp (matches C swiglu_clamped; <=0 -> no clamp)
+ } p;
+ 
+ shared float xsh[6144];
+@@ -99,6 +100,10 @@ void main() {
+         }
+         float gt = subgroupAdd(g), ut = subgroupAdd(u);
+         if (p.fmt != 5 && p.fmt != 4) { gt *= gscale[o]; ut *= uscale[o]; }   // per-row formats only
++        if (p.limit > 0.0) {   // C: g=min(g,limit); u=min(max(u,-limit),limit)
++            gt = gt > p.limit ? p.limit : gt;
++            ut = ut < -p.limit ? -p.limit : (ut > p.limit ? p.limit : ut);
++        }
+         if (lane == 0) hid[s * p.O + o] = (gt / (1.0 + exp(-gt))) * ut;   // silu(gate)*up
+     }
+ }

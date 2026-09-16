@@ -1,0 +1,71 @@
+DRAFT PATCH — UNVERIFIZIERT, NICHT GEGENTESTET (2026-09-16, Hermine KI-Agent)
+
+Zweck: UMA-OOM Guard fuer den glm53 VK-Expert-Tier.
+Root Cause (dokumentiert in docs/benchmarks.md, 2026-09-15):
+  Auf Unified-Memory-Geraeten (gfx1151) stammen VK-Arena-Allokationen
+  (backend_vulkan.c, VK_WARENA_BLOCK 256 MB, g_warena) direkt aus dem
+  System-RAM, und Arena-Bloecke werden nie ans OS zurueckgegeben.
+  Der glm53-Expert-Tier ruft coli_vk_tensor_ensure() pro Cache-Miss ohne
+  Device-Memory-Budget auf -> monotoneres Wachstum (~4.8 GB unique
+  Expert-Bytes pro Token) -> globaler OOM nach ~90 s Decode
+  (gpu_active ~99 GB bei 24 GB Prozess-RSS).
+
+Loesung (a) — implementiert: Budget-Gate im glm53.c-Expert-Tier,
+  analog zum COLI_VK_RESERVE_GB-Muster aus colibri.c (vk_registry_fill):
+  Vor jedem neuen Upload wird coli_vk_mem_budget() (VK_EXT_memory_budget)
+  geprueft; ab GLM53_VK_BUDGET_GB (Default 24) bleiben neue Experten auf
+  der CPU. LRU-Verhalten und bestehende Resident-Tensoren sind unberuehrt.
+  GLM53_VK_BUDGET_GB=0 deaktiviert das Gate (Alttverhalten).
+
+Loesung (b) — Design-Skizze, NICHT implementiert:
+  Arena-Block-Rueckgabe an das OS (coli_vk_arena_reclaim): erfordert
+  Ref-Counting pro Arena-Block, da Bloecke slice-geteilt sind und `off`
+  nie zurueckfaehrt. Groesserer Eingriff in die Arena-Buchhaltung; waere
+  als Upstream-Diskussion mit Verifikationslauf zu fuehren. Das Budget-Gate
+  (a) verhindert das Wachstum bereits — (b) ist nur fuer Rueckgabe waehrend
+  der Laufzeit noetig.
+
+Anwendung: git apply patches/glm53_vk_arena_budget_draft.patch
+  (gegen Colibri-Stand f028d26 + glm53_vk_expert_clamped.patch)
+  Build: -DCOLI_VULKAN. ERST in einer Testumgebung pruefen, nicht auf
+  Produktivsystemen.
+
+diff --git a/c/glm53.c b/c/glm53.c
+index 1271912..706e97f 100644
+--- a/c/glm53.c
++++ b/c/glm53.c
+@@ -85,6 +85,25 @@ static uint64_t g_metal_moe_rows = 0;
+ #ifdef COLI_VULKAN
+ #include "backend_vulkan.h"
+ static int g_vk_ready = 0;
++/* DRAFT (unverified): UMA-OOM guard for the glm53 VK expert tier.
++ * On unified-memory devices (gfx1151) VK arena allocations come straight
++ * out of system RAM and the arena never returns blocks to the OS, so an
++ * uncapped expert tier grows monotonically (~4.8 GB unique expert bytes
++ * per token) -> global OOM after ~90 s decode (docs/benchmarks.md).
++ * Gate NEW uploads at GLM53_VK_BUDGET_GB (default 24 GB device-side);
++ * experts over the cap stay on the CPU path. Mirrors the
++ * COLI_VK_RESERVE_GB pattern of vk_registry_fill in colibri.c. */
++static double g_vk_budget_gb = -1.0;
++static int vk_expert_budget_ok(void) {
++    if (g_vk_budget_gb < 0) {
++        const char *e = getenv("GLM53_VK_BUDGET_GB");
++        g_vk_budget_gb = e ? atof(e) : 24.0;
++    }
++    if (g_vk_budget_gb <= 0) return 1;                /* gate disabled */
++    double used = 0, total = 0;
++    if (!coli_vk_mem_budget(&used, &total)) return 1; /* no VK_EXT_memory_budget: no gate */
++    return used < g_vk_budget_gb;
++}
+ #endif
+ #include "compat.h"
+ #include "serve_poll.h"          /* CANCEL a meta' turno (#1332) */
+@@ -1669,6 +1688,8 @@ static void ffn_layer(GModel *m, const GLayer *l, int index, const float *x,
+             for (int i = 0; i < here && nvk < 64; i++) {
+                 Slot *slot = &cache->s[slot_of[i]];
+                 if (!slot->piece[0] || !slot->piece[2] || !slot->piece[4]) continue;
++                /* DRAFT UMA-OOM guard: no NEW uploads once VK is at budget. */
++                if (!slot->vk[0] && !vk_expert_budget_ok()) continue;
+                 if (!slot->vk[0]) {
+                     if (!coli_vk_tensor_ensure((ColiVkTensor **)&slot->vk[0], slot->piece[0],
+                             (const float *)slot->piece[1], 4, c->hidden, c->moe_inter, 64)) {

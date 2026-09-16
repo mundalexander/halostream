@@ -31,14 +31,15 @@ Halogen dient als Serving-Referenz für Qwen3.8-Flash-Next auf demselben Silicon
 |---|---|
 | CPU-Streaming-Loop funktioniert? | **Ja**: echte Antwort erzeugt |
 | Token-Rate interaktiv? | **Noch nein**: 1,371 tok/s im 8-Token-Smoke-Test |
-| GPU-Pfad schneller als CPU? | **Offen**: keine GPU im Colibri-Plan erkannt |
+| GPU-Pfad schneller als CPU? | **JA** (verifiziert 15.09.): ~26,5 tok/s projizierte MoE-Phase, token-ident GPU==CPU via `test_glm53_vulkan.py` — siehe `docs/CONTRIBUTION_FINDINGS_2026-09-15.md` |
 
-Nein → CPU-only belassen, Projekt „beobachten". Ja → Phase 3.
+Nein → CPU-only belassen, Projekt „beobachten". Ja → Phase 3. **→ Go erreicht, Phase 3 GEOEFFNET (15.09.).**
 
-## Phase 3 – Port / Integration (nur bei Go)
+## Phase 3 – Port / Integration (GEOEFFNET 2026-09-15)
 - Vulkan-Backend in die Serving-Pipeline integrieren
 - Memory-Tiering, `coli serve` als systemd-Service, OpenAI-kompatibel
 - Patches in `patches/`, Upstream-PR erwägen
+- **Offen: UMA-OOM — VK-Arena Budget-Gate nötig** (Draft: `patches/glm53_vk_arena_budget_draft.patch`, Root-Cause: `docs/benchmarks.md` + `docs/ISSUE_UMA_OOM_DRAFT.md`)
 
 ## Phase 4 – Modell & Betrieb
 

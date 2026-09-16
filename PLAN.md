@@ -39,7 +39,7 @@ Nein → CPU-only belassen, Projekt „beobachten". Ja → Phase 3. **→ Go err
 - Vulkan-Backend in die Serving-Pipeline integrieren
 - Memory-Tiering, `coli serve` als systemd-Service, OpenAI-kompatibel
 - Patches in `patches/`, Upstream-PR erwägen
-- **Offen: UMA-OOM — VK-Arena Budget-Gate nötig** (Draft: `patches/glm53_vk_arena_budget_draft.patch`, Root-Cause: `docs/benchmarks.md` + `docs/ISSUE_UMA_OOM_DRAFT.md`)
+- **UMA-OOM: Budget-Gate v2 verifiziert (16.09.)** — v1 (VK_EXT_memory_budget) war auf RADV/UMA ein No-Op (OOM-Test EXIT 137); v2 zählt engine-eigene Upload-Bytes via `coli_vk_mem_info()`, Token-Identität GPU==CPU PASS. Verbleibend: Vollmodell-Budget-Test mit GPUActive-Plateau-Nachweis (Prozess vorbereitet, siehe `docs/ISSUE_UMA_OOM_DRAFT.md`)
 
 ## Phase 4 – Modell & Betrieb
 

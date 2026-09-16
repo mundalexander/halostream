@@ -1,0 +1,66 @@
+UMA-OOM Budget-Gate v2 — SELF-COUNTING (verifiziert 16.09.2026)
+
+Zweck: Verhindert das UMA-OOM im glm53 VK-Expert-Tier (gfx1151, unified RAM).
+Root Cause (docs/benchmarks.md): VK-Arena (256MB-Blocks) gibt nie ans OS
+zurueck; der glm53-Tier laedt pro Cache-Miss ohne Device-Budget ->
+monotoneres Wachstum (~4.8 GB unique Expert-Bytes/Token) -> globaler OOM.
+
+Warum v2 (und nicht v1): v1 nutzte VK_EXT_memory_budget (coli_vk_mem_budget).
+Die Extension meldet sich zwar 'on', liefert aber auf RADV/UMA keine realen
+heapUsage-Werte — das Gate war ein No-Op (Testlauf 16.09: OOM bei 103 GB
+GPUActive, EXIT 137). v2 zaehlt die ENGINE-EIGENEN Upload-Bytes ueber
+coli_vk_mem_info() (G.used_bytes, atomisch bei Upload UND Free gepflegt) —
+treiberunabhaengig und verlaesslich.
+
+Wirkung: Neue Experten-Uploads stoppen bei GLM53_VK_BUDGET_GB (Default 24);
+betroffene Experten bleiben auf dem CPU-Pfad. Bestehende Resident-Tensoren
+und LRU-Verhalten unveraendert. GLM53_VK_BUDGET_GB=0 schaltet das Gate aus.
+
+VERIFIKATION (16.09., Server mit 8060S):
+- git apply --check gegen Colibri-Stand f028d26 + dirty Tree: PASSED
+- Build: make VK=1 glm53 (BUILD_EXIT 0, -DCOLI_VULKAN bestaetigt)
+- tests/test_glm53_vulkan.py: PASS — stessi token della CPU su 8 posizioni
+  e 4 passi greedy (RADV GFX1151)
+- Vollmodell-Budget-Test (GPUActive-Plateau bei Cap): siehe docs/benchmarks.md
+
+Anwendung: git apply patches/glm53_vk_budget_v2.patch
+Build: make VK=1 glm53
+
+--- a/c/glm53.c
+--- a/c/glm53.c
++++ b/c/glm53.c
+@@ -85,6 +85,25 @@ static uint64_t g_metal_moe_rows = 0;
+ #ifdef COLI_VULKAN
+ #include "backend_vulkan.h"
+ static int g_vk_ready = 0;
++/* UMA-OOM guard for the glm53 VK expert tier (v2, self-counting).
++ * v1 used VK_EXT_memory_budget (coli_vk_mem_budget) which reports no real
++ * heapUsage on RADV/UMA -> gate was a no-op (tested 16.09: OOM at 103GB).
++ * v2 counts the engine's OWN uploaded bytes via coli_vk_mem_info()
++ * (G.used_bytes, maintained atomically across upload AND free), so the cap
++ * is driver-independent. New expert uploads stop at GLM53_VK_BUDGET_GB
++ * (default 24); those experts stay on the CPU path. Existing resident
++ * tensors and LRU behaviour unchanged. GLM53_VK_BUDGET_GB=0 disables. */
++static double g_vk_budget_gb = -1.0;
++static int vk_expert_budget_ok(void) {
++    if (g_vk_budget_gb < 0) {
++        const char *e = getenv("GLM53_VK_BUDGET_GB");
++        g_vk_budget_gb = e ? atof(e) : 24.0;
++    }
++    if (g_vk_budget_gb <= 0) return 1;                /* gate disabled */
++    size_t used = 0, cnt = 0;
++    coli_vk_mem_info(&used, &cnt);
++    return (double)used < g_vk_budget_gb * 1e9;
++}
+ #endif
+ #include "compat.h"
+ #include "serve_poll.h"          /* CANCEL a meta' turno (#1332) */
+@@ -1669,6 +1688,8 @@ static void ffn_layer(GModel *m, const GLayer *l, int index, const float *x,
+             for (int i = 0; i < here && nvk < 64; i++) {
+                 Slot *slot = &cache->s[slot_of[i]];
+                 if (!slot->piece[0] || !slot->piece[2] || !slot->piece[4]) continue;
++                /* UMA-OOM guard: no NEW uploads once VK is at budget. */
++                if (!slot->vk[0] && !vk_expert_budget_ok()) continue;
+                 if (!slot->vk[0]) {
+                     if (!coli_vk_tensor_ensure((ColiVkTensor **)&slot->vk[0], slot->piece[0],
+                             (const float *)slot->piece[1], 4, c->hidden, c->moe_inter, 64)) {

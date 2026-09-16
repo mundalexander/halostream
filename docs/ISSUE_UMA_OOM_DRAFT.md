@@ -46,12 +46,18 @@ GLM53_EXPERT_GB=16 KV_SLOTS=2048 \
 
 ## Vorschlag
 
-**Draft-Patch vorhanden:** `patches/glm53_vk_arena_budget_draft.patch`
-(unverifiziert, nicht gegentestet):
-- Budget-Gate `GLM53_VK_BUDGET_GB` (Default 24) im glm53-Expert-Tier
-- Prueft `coli_vk_mem_budget()` (VK_EXT_memory_budget) vor neuem Upload
-- Experten ueber dem Cap bleiben auf dem CPU-Pfad; LRU unveraendert
-- `GLM53_VK_BUDGET_GB=0` = Alttverhalten
+**Patch v2 vorhanden und verifiziert:** `patches/glm53_vk_budget_v2.patch`
+- v1 (VK_EXT_memory_budget) wurde getestet: Extension meldet "on", liefert
+  aber auf RADV/UMA keine realen heapUsage-Werte → Gate No-Op, OOM bei
+  103 GB GPUActive (EXIT 137).
+- v2 zaehlt die engine-eigenen Upload-Bytes ueber `coli_vk_mem_info()`
+  (G.used_bytes, atomisch bei Upload UND Free) → treiberunabhaengig.
+- Verifikation 16.09.: `make VK=1 glm53` BUILD OK;
+  `tests/test_glm53_vulkan.py` PASS — stessi token della CPU su 8 posizioni
+  e 4 passi greedy (RADV GFX1151).
+- Verbleibend: Vollmodell-Budget-Test (GPUActive-Plateau am Cap statt
+  linearer Drain). Setup: Halogen-artige Dienste stoppen, dann
+  `GLM53_VK_BUDGET_GB=8` + GPUActive-Monitor (`awk '/GPUActive/{print $2}' /proc/meminfo` alle 5s).
 
 **Offene Design-Frage:** Arena-Block-Rueckgabe an das OS
 (`coli_vk_arena_reclaim`) fuer True-Rueckgabe waehrend der Laufzeit —

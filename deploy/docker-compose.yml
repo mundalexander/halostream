@@ -1,69 +1,58 @@
 # deploy/docker-compose.yml — HaloStream-Deployment für halogen-flash-server
-# Adaptiert von spike/halogen_ref/docker-compose.yml (Podman-Variante) für Docker:
-# group_add ["video","render"] statt keep-groups.
+# Podman-Variante (group_add keep-groups).
 #
 # Voraussetzungen:
 #   1. Checkpoint komplett: /home/sascha/models/halogen_store (hf download Output,
 #      enthält Checkpoint + Quality-Sidecar + tokenizer/)
-#   2. Docker installiert (docker.io + docker-compose-v2)
+#   2. Podman installiert
 #
 # Start:
 #   cd /home/sascha/halostream/deploy
-#   HALOGEN_MODELS=/home/sascha/models/halogen_store docker compose up -d
-#   docker compose logs -f engine   # Load dauert Minuten, Healthcheck 20m start_period
+#   HALOGEN_MODELS=/home/sascha/models/halogen_store podman compose up -d
+#   podman compose logs -f   # Load dauert ~40s, Healthcheck 20m start_period
 #
-# RAM-WARNUNG: Die Engine mlock't ~68 GiB Gewichte + ~28 GiB KV-Pool (~96 GiB gesamt).
-# NICHT gleichzeitig mit GLM-5.3-Load-Tests oder geladenen LM-Studio-Modellen betreiben.
-# Sequenz heute abend: erst GLM-First-Run, dann Halogen (siehe PLAN.md).
+# RAM-WARNUNG: Die Engine mlock't ~68 GiB Gewichte + ~7.7 GiB KV-Pool.
+# Der 524288-KV-Pool-Default des Images ist auf diesem Host zu gross und wedged.
+# Daher HALOGEN_KV_POOL_POSITIONS=262144 (halbe Groesse, ~7.7 GiB).
+#
+# WICHTIG: HALOGEN_COMPOSABLE_CONTEXT darf NICHT gesetzt werden.
+# Es senkt die MTP-Draft-Acceptance massiv (DE: 32%→48%, +67% Decode).
+# Benchmark 2026-09-21: ohne COMPOSABLE_CONTEXT 45.1 tok/s (EN) vs. 24.9 mit.
 #
 # Port 8731 ist bewusst NUR auf Loopback gebunden (API ist die einzige Kante,
 # Engine-Protokoll hat kein Auth). Für LAN-Zugriff: "8731:8731" statt
 # "127.0.0.1:8731:8731" — bewusst entscheiden.
 services:
-  engine:
-    image: ghcr.io/peonist-ai/halogen-flash-server:0.6.0
-    command: ["engine"]
+  halogen:
+    # All-in-one (engine+api in einem Container, CMD "all").
+    # Die 0.6.0 Split-Config (engine+api getrennt) war fuer docker compose,
+    # podman kann all-in-one mit keep-groups einfach laufen.
+    image: ghcr.io/peonist-ai/halogen-flash-server:0.12.3
+    command: ["all"]
     environment:
-      # Separate netns im compose-Netz; nicht zum Host publiziert.
-      HALOGEN_BIND: 0.0.0.0
-      # Bewusst sonst keine Env-Overrides: das Image trägt die getunten Defaults
-      # (KV-Pool, Quality-Sidecar, GEMM-Plan). Siehe docs/FLAGS.md im Ref-Repo.
+      # KV-Pool halbiert: 524288 wedged auf diesem Host (124 GiB RAM,
+      # ~68 GiB Gewichte + 47.7 GiB Lookup-Tabelle via Page-Cache).
+      # 262144 = ~7.7 GiB, laeuft stabil.
+      HALOGEN_KV_POOL_POSITIONS: "262144"
+      HALOGEN_CACHE_DIR: /cache
+      HALOGEN_VISION_TOWER: /models/qwen38-flash-next-vision.hgn
+      # NICHT setzen: HALOGEN_COMPOSABLE_CONTEXT (senkt Draft-Acceptance).
+      # Sonst keine Overrides — das Image trägt die getunten Defaults.
     volumes:
-      - ${HALOGEN_MODELS:?set HALOGEN_MODELS}:/models:ro
+      - ${HALOGEN_MODELS:?set HALOGEN_MODELS}:/models:ro,rbind
+      - /home/sascha/halogen_cache:/cache:rw,rbind
     devices:
       - /dev/kfd
-      - /dev/dri
-    security_opt: [seccomp:unconfined]
+      - /dev/dri/renderD128
+    security_opt: [label=disable]
     ipc: host
     ulimits:
-      memlock: -1
-    # Fix 2026-09-13 (Jarvis, Deploy-Check): runc loest group_add-Namen gegen die
-    # /etc/group des CONTAINERS auf; "render" fehlt dort (Host: video=44, render=992,
-    # Devices sind crw-rw-rw- root:render). Numerische GIDs umgehen die Aufloesung.
-    group_add: ["44", "992"]
-    healthcheck:
-      test: ["CMD", "/usr/local/bin/halogen-healthcheck", "engine"]
-      interval: 10s
-      timeout: 35s
-      retries: 3
-      # 20m Load-Zeit einkaufen: Failures während start_period zählen nicht.
-      start_period: 20m
-    restart: unless-stopped
-
-  api:
-    image: ghcr.io/peonist-ai/halogen-flash-server:0.6.0
-    command: ["api"]
-    depends_on:
-      engine:
-        condition: service_healthy
-    environment:
-      HALOGEN_ENGINE: engine:8730
-    volumes:
-      - ${HALOGEN_MODELS:?set HALOGEN_MODELS}:/models:ro
+      memlock: -1:-1
+    group_add: ["keep-groups"]
     ports:
-      - "127.0.0.1:8731:8731"   # einzige publizierte Kante, nur Loopback
+      - "127.0.0.1:8731:8731"
     healthcheck:
-      test: ["CMD", "/usr/local/bin/halogen-healthcheck", "api"]
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:8731/health"]
       interval: 10s
       timeout: 35s
       retries: 3

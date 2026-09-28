@@ -1,0 +1,4 @@
+#!/bin/sh
+# Wrapper: glslc aus ausgepacktem Ubuntu-Paket (ohne sudo installiert)
+export LD_LIBRARY_PATH="/home/sascha/colibri-rocm/spike/pkg/usr/lib/x86_64-linux-gnu${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+exec /home/sascha/colibri-rocm/spike/pkg/usr/bin/glslc "$@"

@@ -13,7 +13,9 @@
 #
 # RAM-WARNUNG: Die Engine mlock't ~68 GiB Gewichte + ~7.7 GiB KV-Pool.
 # Der 524288-KV-Pool-Default des Images ist auf diesem Host zu gross und wedged.
-# Daher HALOGEN_KV_POOL_POSITIONS=262144 (halbe Groesse, ~7.7 GiB).
+# KV-Pool auf 262144 (Image-Default) — mit LM Studio aus bleibt genug RAM.
+# 131072 war zu klein: Pool bei 79%, Requests warteten auf Retirement, Watchdog
+# killte den Engine nach 60s Stall (rc=143). 262144 = ~15.4 GiB, funktioniert stabil.
 #
 # WICHTIG: HALOGEN_COMPOSABLE_CONTEXT darf NICHT gesetzt werden.
 # Es senkt die MTP-Draft-Acceptance massiv (DE: 32%→48%, +67% Decode).
@@ -27,13 +29,15 @@ services:
     # All-in-one (engine+api in einem Container, CMD "all").
     # Die 0.6.0 Split-Config (engine+api getrennt) war fuer docker compose,
     # podman kann all-in-one mit keep-groups einfach laufen.
-    image: ghcr.io/peonist-ai/halogen-flash-server:0.12.3
+    image: ghcr.io/peonist-ai/halogen-flash-server:0.13.8
     command: ["all"]
     environment:
       # KV-Pool halbiert: 524288 wedged auf diesem Host (124 GiB RAM,
       # ~68 GiB Gewichte + 47.7 GiB Lookup-Tabelle via Page-Cache).
       # 262144 = ~7.7 GiB, laeuft stabil.
+      HALOGEN_CTX: "262144"
       HALOGEN_KV_POOL_POSITIONS: "262144"
+      HALOGEN_KV_SLOTS: "2"
       HALOGEN_CACHE_DIR: /cache
       HALOGEN_VISION_TOWER: /models/qwen38-flash-next-vision.hgn
       # NICHT setzen: HALOGEN_COMPOSABLE_CONTEXT (senkt Draft-Acceptance).
@@ -47,12 +51,15 @@ services:
     security_opt: [label=disable]
     ipc: host
     ulimits:
-      memlock: -1:-1
+      memlock:
+        soft: -1
+        hard: -1
     group_add: ["keep-groups"]
     ports:
       - "127.0.0.1:8731:8731"
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://127.0.0.1:8731/health"]
+      # 0.13.0+ enthält kein curl mehr — python3-basierter Check.
+      test: ["CMD", "python3", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8731/health', timeout=30).status==200 else 1)"]
       interval: 10s
       timeout: 35s
       retries: 3
